@@ -918,19 +918,7 @@ func (s *localSession) appendAudit(ev SandboxAuditEvent) {
 	if s.closed {
 		return
 	}
-	_ = writeAudit(s.auditDir, fmt.Sprintf("sandbox-%04d.json", ev.Sequence), AuditRecord{
-		EventType:       ev.EventType,
-		PolicyVersion:   ev.PolicyVersion,
-		PolicyDigest:    ev.PolicyDigest,
-		SourceCommit:    s.req.SourceCommit,
-		Role:            ev.Role,
-		Cycle:           ev.Cycle,
-		WorkItem:        ev.WorkItem,
-		Decision:        ev.Decision,
-		RejectionReason: ev.RejectionReason,
-		FixtureVersion:  FixtureVersion,
-		BackendVersion:  ev.BackendVersion,
-	})
+	_ = writeSandboxAudit(s.auditDir, fmt.Sprintf("sandbox-%04d.json", ev.Sequence), ev)
 }
 
 func (s *localSession) canonicalInRoot(projectPath string) (string, error) {
@@ -991,7 +979,7 @@ func sandboxEnv(scratch string) []string {
 
 func classifyAndPrepareGitArgs(args []string) ([]string, error) {
 	if len(args) == 0 {
-		return nil, errors.New("Git command is missing.")
+		return nil, errors.New("git command is missing")
 	}
 	first := args[0]
 	if strings.HasPrefix(first, "-") {

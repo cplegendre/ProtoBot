@@ -225,6 +225,8 @@ func (r *Runner) GlobalArgs() []string {
 }
 
 // CommandContext builds an *exec.Cmd for args using the runner's global args and environment.
+// Unlike the package-level gitx.CommandContext, this method does not wrap or enforce gitx.Timeout.
+// Callers must bound ctx; do not assume the method enforces gitx.Timeout.
 func (r *Runner) CommandContext(ctx context.Context, args ...string) *exec.Cmd {
 	if ctx == nil {
 		ctx = context.Background()
