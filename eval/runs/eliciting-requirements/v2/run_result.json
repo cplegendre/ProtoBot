@@ -1,0 +1,155 @@
+{
+  "exit_code": 0,
+  "duration_s": 1995.7,
+  "wall_clock_s": 1995.9,
+  "cost_usd": null,
+  "token_usage": null,
+  "num_turns": null,
+  "per_model_usage": null,
+  "per_model_turns": null,
+  "permission_denials": [],
+  "num_cases": 13,
+  "model": "anthropic/claude-sonnet-4-6",
+  "agent": "cli",
+  "agent_version": "",
+  "execution_mode": "case",
+  "eval_params": {
+    "execution_mode": "case",
+    "max_budget_usd": 4.0,
+    "timeout_s": 1200,
+    "skill": "eliciting-requirements",
+    "skill_args": "{prompt}"
+  },
+  "per_case": {
+    "case-001-ubiquitous": {
+      "exit_code": 0,
+      "duration_s": 154.4,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-002-event-driven": {
+      "exit_code": 0,
+      "duration_s": 119.1,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-003-state-driven": {
+      "exit_code": 0,
+      "duration_s": 153.4,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-004-optional-feature": {
+      "exit_code": 0,
+      "duration_s": 136.0,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-005-unwanted-behavior": {
+      "exit_code": 0,
+      "duration_s": 126.1,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-006-complex-splitting": {
+      "exit_code": 0,
+      "duration_s": 160.9,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-007-rough-api": {
+      "exit_code": 0,
+      "duration_s": 222.0,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-008-vague-ui": {
+      "exit_code": 0,
+      "duration_s": 123.3,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-009-broad-security": {
+      "exit_code": 0,
+      "duration_s": 159.8,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-010-supporting-requirements": {
+      "exit_code": 0,
+      "duration_s": 145.1,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-011-conflicting-set": {
+      "exit_code": 0,
+      "duration_s": 133.0,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-012-host-independent": {
+      "exit_code": 0,
+      "duration_s": 173.1,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    },
+    "case-023-ready-complete": {
+      "exit_code": 0,
+      "duration_s": 189.5,
+      "token_usage": null,
+      "cost_usd": null,
+      "num_turns": null,
+      "per_model_usage": null,
+      "per_model_turns": null,
+      "permission_denials": []
+    }
+  }
+}

@@ -23,7 +23,7 @@ runner:
     - "{args}"
 
 models:
-  skill: google-vertex/claude-sonnet-4-6@default
+  skill: anthropic/claude-sonnet-4-6
   judge: claude-opus-4-6
 
 mlflow:

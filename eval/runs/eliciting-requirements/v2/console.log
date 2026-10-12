@@ -1,0 +1,178 @@
+Executing: /eliciting-requirements (per-case, 13 cases)
+Agent: cli | Model: anthropic/claude-sonnet-4-6
+  [1/13] case-001-ubiquitous: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+Source request:
+The audit service must retain every accepted audit event for 30 days. An
+authorized auditor must be able to retrieve an accepted event during that
+retention period.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (154s)
+    → case-001-ubiquitous: OK | 154s | cost n/a
+  [2/13] case-002-event-driven: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+Source request:
+When a customer submits a valid payment, the payment service shall return
+an authorization result within 2 seconds.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (119s)
+    → case-002-event-driven: OK | 119s | cost n/a
+  [3/13] case-003-state-driven: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+Source request:
+While an import job is paused, the import service shall not process new
+records for that job.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (153s)
+    → case-003-state-driven: OK | 153s | cost n/a
+  [4/13] case-004-optional-feature: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+Source request:
+Where offline export is included in the product, the export service shall
+provide the selected report as a downloadable CSV file.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (136s)
+    → case-004-optional-feature: OK | 136s | cost n/a
+  [5/13] case-005-unwanted-behavior: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+Source request:
+If the upstream identity provider times out, then the gateway shall return
+HTTP 503 and a Retry-After header to the caller.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (126s)
+    → case-005-unwanted-behavior: OK | 126s | cost n/a
+  [6/13] case-006-complex-splitting: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+Source request:
+While a batch is in validation mode, when the operator submits it, the
+batch service shall validate every record and notify the operator if any
+record is invalid.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (161s)
+    → case-006-complex-splitting: OK | 161s | cost n/a
+  [7/13] case-007-rough-api: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+Source request:
+Users can upload invoices. Use a React form, put the work on a Redis queue,
+store the result in a PostgreSQL table, and handle bad invoices gracefully.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (222s)
+    → case-007-rough-api: OK | 222s | cost n/a
+  [8/13] case-008-vague-ui: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+Source request:
+The UI must be responsive.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (123s)
+    → case-008-vague-ui: OK | 123s | cost n/a
+  [9/13] case-009-broad-security: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+Source request:
+The system must not contain security vulnerabilities.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (160s)
+    → case-009-broad-security: OK | 160s | cost n/a
+  [10/13] case-010-supporting-requirements: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+Source request:
+When a client submits a valid order, the order service shall assign an order
+identifier and return it in the submission response. A valid order contains
+at least one product identifier and a positive quantity for each product.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (145s)
+    → case-010-supporting-requirements: OK | 145s | cost n/a
+  [11/13] case-011-conflicting-set: /eliciting-requirements Evaluate this requirement set as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+R1 [orders]: When a client submits a duplicate order, the order service
+shall return the identifier of the existing order.
+
+R2 [orders]: When a client submits a duplicate order, the order service
+shall create a new order with a new identifier.
+
+The source does not state which behavior has priority.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (133s)
+    → case-011-conflicting-set: OK | 133s | cost n/a
+  [12/13] case-012-host-independent: /eliciting-requirements Evaluate this host-supplied requirement as a requirements elicitor. Return
+the complete portable Requirements Elicitation Package in your final
+response. Also write the same markdown package to artifacts/result.md. Do
+not consult a reference answer.
+
+Host metadata:
+id: BILL-REQ-42
+tags: [billing, external-api]
+trace: interface://billing/v2/charge
+
+Existing requirement:
+When the Billing API receives a charge request at the service boundary with
+a positive decimal amount no greater than 10,000 in the request currency and
+a currency in the supported set [USD, EUR, GBP], the Billing API shall
+return a JSON response body containing only one field named decision, with
+the value approved, declined, or indeterminate. The value indeterminate is
+terminal for this request. The Billing API shall emit that response within a
+maximum of 500 ms for every valid request under a load of up to 100
+concurrent valid requests. The timing clock starts when the complete request
+body has been received and parsed by the Billing API, and ends when the final
+response byte is emitted at the service boundary. Invalid amounts,
+unsupported currencies, and behavior after a missed deadline are outside
+this requirement and are specified separately.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (173s)
+    → case-012-host-independent: OK | 173s | cost n/a
+  [13/13] case-023-ready-complete: /eliciting-requirements Evaluate this source request as a requirements elicitor. Return the complete
+portable Requirements Elicitation Package in your final response. Also write
+the same markdown package to artifacts/result.md. Do not consult a reference
+answer.
+
+System boundary: the Health API's unauthenticated GET /health endpoint.
+Actor: any client. When a client sends a GET /health request with no request
+body, the Health API shall return HTTP status 200, Content-Type
+application/json with no parameters, and exactly the byte sequence
+{"status":"ok"} as the response body. Measure the maximum 100 ms response
+time from receipt of the complete request headers at the Health API process
+boundary to emission of the final response byte at that same boundary. The
+maximum is P100: every request must meet it. A health request is concurrent
+from complete-header receipt until final-byte emission; this requirement
+applies while no more than 50 such requests are in flight at the process
+boundary. Non-GET requests, request bodies, error responses, and behavior
+above 50 concurrent requests are covered by separate requirements.
+  eval | Running: bash /Users/ricmitch/Code/ProtoBot/.worktrees/agent/63-calibrate-eval-baseline/eval/eliciting-requirements/scripts/run-o
+  eval | OK (190s)
+    → case-023-ready-complete: OK | 190s | cost n/a
+EXIT: 0
+DURATION: 1996s wall-clock, 1996s total
+COST: unavailable
+CASES: 13 (13 OK, 0 FAIL)

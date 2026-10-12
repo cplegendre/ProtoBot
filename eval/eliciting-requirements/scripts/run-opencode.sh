@@ -45,7 +45,6 @@ printf '%s\n' \
 
 opencode_args=(
   run
-  --dir "$workspace"
   --model "$model"
   --format json
   --auto
@@ -64,5 +63,5 @@ if command -v bwrap >/dev/null 2>&1; then
     --chdir "$workspace" \
     -- opencode "${opencode_args[@]}"
 else
-  opencode "${opencode_args[@]}"
+  (cd "$workspace" && opencode "${opencode_args[@]}")
 fi

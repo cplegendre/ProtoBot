@@ -1,0 +1,2526 @@
+judges:
+  category_critical_gate:
+    errored_cases: 0
+    mean: 1.0
+    pass_rate: 1.0
+    scored_cases: 13
+  ears_structure:
+    errored_cases: 0
+    mean: 0.8461538461538461
+    pass_rate: 0.8461538461538461
+    scored_cases: 13
+  ears_template_coverage:
+    errored_cases: 0
+    mean: 1.0
+    pass_rate: 1.0
+    scored_cases: 13
+  execution_succeeded:
+    errored_cases: 0
+    mean: 1.0
+    pass_rate: 1.0
+    scored_cases: 13
+  package_structure:
+    errored_cases: 0
+    mean: 1.0
+    pass_rate: 1.0
+    scored_cases: 13
+  readiness_gate:
+    errored_cases: 0
+    mean: 0.9230769230769231
+    pass_rate: 0.9230769230769231
+    scored_cases: 13
+  review_discipline:
+    errored_cases: 0
+    mean: 4.923076923076923
+    pass_rate: null
+    scored_cases: 13
+  semantic_quality:
+    errored_cases: 0
+    mean: 4.923076923076923
+    pass_rate: null
+    scored_cases: 13
+per_case:
+  case-001-ubiquitous:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: Expected EARS syntax is present
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Material uncertainty remains gated
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'The output is excellent across all evaluation dimensions:
+
+
+        **Separation of concerns:** The package uses all required headings (Understanding,
+        Clarifying Questions, Candidate Requirements, Suggested Supporting Requirements,
+        Consistency Findings, Assumptions, Rationale and Context, Review Status) and
+        keeps each section cleanly separated. Goals/rationale are not mixed into normative
+        sentences. Assumptions are labeled provisional with cross-references to questions.
+        Suggestions are explicitly outside the candidate list.
+
+
+        **Required findings met:**
+
+        1. *Split retention and retrieval if independently verified:* Yes — Candidate
+        1 covers retention, Candidate 2 covers retrieval, with explicit justification:
+        "they can be negotiated and verified independently."
+
+        2. *Identify the auditor permission boundary:* Yes — Q3 explicitly asks whether
+        authorization is enforced by the audit service or an upstream gateway, S4
+        suggests a required companion for authorization verification, and the implementability
+        contract for Candidate 2 marks the actor as "open; authorization mechanism
+        undefined."
+
+
+        **Template selection:** Both candidates correctly use "Ubiquitous" with clear
+        reasoning that the obligations are unconditional. This matches expected_templates:
+        [''ubiquitous''].
+
+
+        **Readiness:** Both candidates are correctly marked "needs clarification"
+        matching the expected readiness. The contracts contain "open" markers throughout,
+        and the status is consistently applied per the Final Output Invariants.
+
+
+        **Disallowed behaviors avoided:**
+
+        - No database or retention implementation is chosen (no mention of specific
+        storage technology).
+
+        - No host approval is claimed — the output explicitly states statuses are
+        not approval.
+
+
+        **Uncertainty preservation:** All open items are explicitly marked with cross-references
+        to questions. No uncertainty is suppressed or confidently resolved. Assumptions
+        are clearly labeled "provisional."
+
+
+        **Contract completeness:** Both implementability and verification contracts
+        follow the exact prescribed field structure. Open items are clearly flagged.
+
+
+        **Consistency findings:** Four relevant findings are identified (boundary
+        gap, unauthorized access gap, post-expiry gap, linkage analysis). All are
+        well-grounded.
+
+
+        **Supporting requirements:** S1–S6 use the correct relationship labels, name
+        source behavior, missing behavior, and reason. S6 (immutability) is correctly
+        labeled "Optional consideration" since it''s not stated in the source.
+
+
+        **Minor observations:** The package is thorough, perhaps slightly verbose
+        with some redundancy between the inline response and the artifact file, but
+        this is not a deficiency — it fulfills the prompt''s instruction to return
+        the package in both locations. No material presentation omissions detected.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: 'Let me evaluate the output against each expected property:
+
+
+        **expected_templates: [''ubiquitous'']** — Both Candidate 1 and Candidate
+        2 are correctly labeled as Template: Ubiquitous. The rationale explicitly
+        explains why: "The obligation is unconditional and always active." This is
+        correct per the EARS pattern guidance. ✓
+
+
+        **readiness: needs_clarification** — Both candidates are correctly marked
+        as "needs clarification" with material open questions in both implementability
+        and verification contracts. No false-ready claims. ✓
+
+
+        **required_findings:**
+
+        1. "split retention and retrieval if they are independently verified" — The
+        output splits into Candidate 1 (retention) and Candidate 2 (retrieval), with
+        explicit justification: "The two obligations are separated into distinct candidates
+        because they can be negotiated and verified independently: an audit service
+        could satisfy the retention obligation while failing the retrieval obligation
+        (e.g., events are retained but no retrieval API exists), or vice versa." ✓
+
+        2. "identify the auditor permission boundary" — Q3 explicitly asks about how
+        an authorized auditor is distinguished from an unauthorized caller and whether
+        the audit service or an upstream gateway enforces authorization. S1 and S4
+        in supporting requirements further address this. The implementability contract
+        for Candidate 2 marks the actor as "open; authorization mechanism undefined;
+        see Q3." ✓
+
+
+        **disallowed_behaviors:**
+
+        1. "choose a database or retention implementation" — The output avoids prescribing
+        any database, storage mechanism, or implementation detail. The normative sentences
+        describe observable behavior. The contracts reference "durable storage interface"
+        as a boundary concept, not a specific technology. ✓
+
+        2. "claim host approval" — The output does not claim approval. It explicitly
+        states "needs clarification" and notes that these statuses "are not persisted
+        requirement lifecycle states." ✓
+
+
+        **category: template-selection** — The ubiquitous template is correctly selected
+        and justified. ✓
+
+
+        **Additional quality observations:**
+
+        - The package follows the exact portable response format with all required
+        sections.
+
+        - Questions are focused and well-justified (Q1-Q7).
+
+        - Supporting requirements (S1-S6) are properly labeled with relationship types,
+        kept outside the candidate list, and grounded in the source material.
+
+        - Consistency findings identify meaningful gaps (boundary behavior, unauthorized
+        access, post-expiry behavior) and correctly note the linkage (not overlap)
+        between the two candidates.
+
+        - Assumptions are clearly labeled as provisional and linked to specific questions.
+
+        - Both implementability and verification contracts are thoroughly completed
+        with open items explicitly marked.
+
+        - The EARS sentences each contain exactly one "shall."
+
+        - No implementation leakage in normative sentences.
+
+
+        The output is exemplary. It hits all required findings, avoids all disallowed
+        behaviors, selects the correct template with proper justification, correctly
+        assigns needs_clarification status, provides thorough contracts, and asks
+        focused high-value questions. The only very minor observation is that some
+        questions (Q7 about retroactive scope) could be considered marginally lower
+        priority, but they are still legitimate and well-grounded. The package is
+        comprehensive and well-structured.'
+      value: 5
+  case-002-event-driven:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: Expected EARS syntax is present
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Material uncertainty remains gated
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'The generated output is exemplary across nearly all evaluation criteria:
+
+
+        **Template Selection:** Correctly identifies the event-driven pattern. The
+        Understanding section explicitly classifies "When a customer submits a valid
+        payment" as a trigger, and Assumption A2 explicitly states "Submit is interpreted
+        as the discrete event of delivering a complete payment request." This satisfies
+        the required finding "explain that submission is a discrete event."
+
+
+        **Required Finding — 2-second measurement boundary:** Q3 directly asks about
+        the measurement point for the 2-second deadline, and Q2 asks about the contents
+        of the authorization result. Both are flagged as unresolved in the implementability
+        and verification contracts. This satisfies "define the 2-second measurement
+        boundary and result contents if absent."
+
+
+        **Readiness:** Status is correctly `needs clarification`, matching the expected
+        readiness.
+
+
+        **Disallowed behaviors:** The output does not classify submission as a state
+        (it''s explicitly called a discrete event trigger). It does not prescribe
+        a payment gateway or implementation protocol — no specific technology, framework,
+        or protocol is mentioned.
+
+
+        **Structural completeness:** All required portable package sections are present:
+        Understanding, Clarifying Questions, Candidate Requirements (with full implementability
+        and verification contracts), Suggested Supporting Requirements, Consistency
+        Findings, Assumptions, Rationale and Context, Review Status. No sections are
+        omitted.
+
+
+        **Separation of concerns:** Goals/rationale are kept separate from the normative
+        sentence. Assumptions (A1-A4) are labeled as provisional. Supporting requirements
+        (SR-1 through SR-4) are explicitly kept outside the candidate list and marked
+        as provisional/not normative. The verification contract does not prescribe
+        Gherkin or implementation-specific test steps.
+
+
+        **Uncertainty preservation:** All unresolved items are explicitly marked as
+        **unresolved** with cross-references to the relevant clarifying questions.
+        The output does not pretend answers exist. No approval is claimed.
+
+
+        **Contracts:** Both implementability and verification contracts follow the
+        exact prescribed field structure with all sub-fields populated. Unresolved
+        items are clearly flagged.
+
+
+        **Minor observations:** The output is thorough and well-structured. The only
+        very minor note is that the file artifact and the inline response are essentially
+        identical (which is correct behavior per the prompt). The package is fully
+        portable and self-contained.
+
+
+        This is a near-perfect execution of the requirements elicitation skill for
+        an easy event-driven case.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: '**Template selection:** The output correctly selects "Event-driven"
+        as the EARS template, matching the expected template. The rationale is clear:
+        "a customer submits a valid payment" is a discrete event trigger, and the
+        output explicitly states this in the Understanding section ("The phrasing
+        maps directly to the Event-driven EARS pattern"), in the source classification
+        table (labeled as "Trigger"), and in the implementability contract ("Trigger
+        is the discrete event of a customer submitting a payment").
+
+
+        **Required finding 1 — Submission is a discrete event:** Fully satisfied.
+        The output explicitly explains in multiple places that submission is a discrete
+        event. Assumption A2 states: "''Submit'' is interpreted as the discrete event
+        of delivering a complete payment request." The implementability contract identifies
+        it as a trigger.
+
+
+        **Required finding 2 — Define the 2-second measurement boundary and result
+        contents if absent:** Fully satisfied. Q3 asks specifically about the measurement
+        point for the 2-second deadline (from service receipt to response emission
+        vs. end-to-end). Q2 asks about the definition and contents of "authorization
+        result." Both are marked as unresolved in the contracts, and the candidate
+        is correctly kept at "needs clarification."
+
+
+        **Readiness:** Correctly set to "needs clarification" — matching the expected
+        readiness. The output does not falsely claim the candidate is ready. Multiple
+        unresolved items are explicitly listed and cross-referenced to clarifying
+        questions.
+
+
+        **Disallowed behaviors:**
+
+        - "classify submission as a state": Not violated. The output correctly treats
+        submission as a discrete event/trigger, never as a state.
+
+        - "prescribe a payment gateway or implementation protocol": Not violated.
+        The output stays implementation-independent throughout. No specific gateway,
+        protocol, or technology is prescribed.
+
+
+        **Additional quality observations:**
+
+        - The package follows the correct portable format with all required sections
+        present.
+
+        - Clarifying questions are focused and high-value (Q1-Q6 cover valid payment
+        definition, authorization result definition, measurement boundaries, timeout
+        behavior, invalid payment behavior, and workload scope).
+
+        - Supporting requirements are well-grounded with appropriate relationship
+        labels (failure-path companion, boundary companion, operational companion).
+
+        - Consistency findings identify relevant gaps (deadline breach, invalid payment,
+        workload scope).
+
+        - Assumptions are clearly separated and labeled as provisional.
+
+        - The EARS sentence contains exactly one "shall."
+
+        - No implementation leakage is present.
+
+        - Contracts are thorough with unresolved items clearly marked.
+
+
+        This is an excellent output that meets all required criteria with no material
+        omissions or errors. The only very minor observation is that some questions
+        (Q5 about invalid payment behavior, Q6 about workload scope) go slightly beyond
+        the core required findings, but these are legitimate high-value questions
+        grounded in the source, not invented concerns. The output is comprehensive
+        without being bloated.'
+      value: 5
+  case-003-state-driven:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: Expected EARS syntax is present
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Material uncertainty remains gated
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'The generated response is excellent across all evaluation dimensions:
+
+
+        **Template Selection (expected: state-driven):** Correctly identified as State-driven
+        with explicit justification: "The obligation holds continuously throughout
+        the paused state — not triggered by a discrete event." The template field
+        is set to "State-driven" in the candidate. This directly matches the expected
+        template.
+
+
+        **Required Findings:**
+
+        1. "Distinguish the paused state from an event that enters the state" — Thoroughly
+        addressed. The Understanding section explicitly states "The source obligation
+        holds continuously throughout the paused state. This is not a discrete event."
+        The Rationale section reinforces: "a named system must suppress a continuous
+        behavior (processing records) while an enduring condition (the job is paused)
+        holds." Q4 asks about the entry/exit events separately. SR-1 suggests a companion
+        requirement for the state transition event, keeping it separate from the state-driven
+        inhibition.
+
+
+        2. "Define observable processing and state exit behavior if material" — Addressed
+        via Q2 (definition of "process"), Q3 (in-flight behavior at pause entry),
+        Q4 (lifecycle of paused state including exit), Q6 (disposition of records
+        during pause), SR-2 (resumption behavior), and SR-3 (in-flight records). These
+        are all flagged as open items, not resolved.
+
+
+        **Disallowed Behaviors:**
+
+        1. "Use When for the ongoing paused state" — Not violated. The candidate uses
+        `While an import job is paused`, correctly using the state-driven pattern
+        with `While`.
+
+        2. "Prescribe worker or queue behavior" — Not violated. No internal implementation
+        details like workers, queues, or threads are prescribed in the normative sentence.
+        Examples in the contracts mention queues only as possible interfaces, not
+        prescribed implementations.
+
+
+        **Readiness:** Correctly set to "needs clarification" matching the expected
+        readiness. Multiple open items are cited.
+
+
+        **Output Structure:** All required sections present: Understanding, Clarifying
+        Questions, Candidate Requirements (with Status, Template, Requirement, Source
+        intent, Implementability contract with all sub-fields, Verification contract
+        with all sub-fields), Suggested Supporting Requirements, Consistency Findings,
+        Assumptions, Rationale and Context, Review Status. No sections omitted.
+
+
+        **Separation of concerns:** Goals/rationale/assumptions/design ideas/obligations
+        are properly separated. Suggestions (SR-1 through SR-5) are kept outside the
+        candidate list. Assumptions are labeled as provisional. Questions are specific
+        and high-value. The information sort table cleanly categorizes source content.
+
+
+        **Uncertainty preservation:** All open items are explicitly marked as "open"
+        in the contracts. No questions are treated as answered. The status correctly
+        reflects the incomplete contracts.
+
+
+        **No invented approval or workflow:** The output does not claim approval,
+        does not invent lifecycle states, and does not generate Gherkin or implementation-specific
+        test steps.
+
+
+        **Minor observations:** The artifact was written to result.md as requested.
+        The inline response and artifact are substantively identical. The supporting
+        requirements use proper relationship labels from the reference. The consistency
+        findings identify meaningful gaps with resolution options.
+
+
+        This is a near-flawless output that clearly separates all information types,
+        preserves uncertainty throughout, uses the correct template, addresses both
+        required findings, avoids both disallowed behaviors, and follows the portable
+        response format precisely.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: 'Let me evaluate the output against each expected semantic property:
+
+
+        **Template selection (expected: state-driven):** The output correctly identifies
+        the State-driven pattern (`While <state>, the <system> shall <response>`).
+        The pattern selection explanation is explicit and well-reasoned: "The obligation
+        holds continuously throughout the paused state — not triggered by a discrete
+        event, not limited to an optional product capability, not an unwanted failure
+        condition." Template field is marked "State-driven." This is correct.
+
+
+        **Disallowed behaviors:**
+
+        1. "use When for the ongoing paused state" — The output correctly uses `While`
+        not `When` for the candidate requirement. The EARS sentence is `While an import
+        job is paused, the import service shall not process records for that job.`
+        No `When` is used for the paused state. ✓
+
+        2. "prescribe worker or queue behavior" — The output does not prescribe internal
+        workers, queues, or implementation mechanisms. It mentions "queue" only as
+        an example of what the interface *might* be, not as a prescribed choice. The
+        normative sentence is clean of implementation details. ✓
+
+
+        **Required findings:**
+
+        1. "distinguish the paused state from an event that enters the state" — The
+        output explicitly addresses this in the Pattern Selection section: "The source
+        obligation holds continuously throughout the paused state. This is not a discrete
+        event..." and in Rationale and Context: "a named system must suppress a continuous
+        behavior (processing records) while an enduring condition (the job is paused)
+        holds." Q4 asks about what event causes entry/exit of the paused state, distinguishing
+        the state from the transition event. This finding is clearly present. ✓
+
+        2. "define observable processing and state exit behavior if material" — The
+        output asks Q2 about what "process" means observably, Q3 about in-flight behavior
+        at pause entry, Q4 about state lifecycle (entry/exit), and Q6 about disposition
+        of records. SR-1 addresses state transition definition, SR-2 addresses resumption
+        behavior (state exit). This finding is well covered. ✓
+
+
+        **Readiness (expected: needs_clarification):** The candidate is correctly
+        marked `needs clarification` with explicit open items listed. The contracts
+        contain multiple "open" markers. This is correct. ✓
+
+
+        **Other quality indicators:**
+
+        - The package follows the correct portable format with all required sections.
+
+        - Information sorting is done properly.
+
+        - Clarifying questions are focused and well-structured (Q1-Q6).
+
+        - Supporting requirements are grounded and properly labeled with relationship
+        types.
+
+        - Consistency findings identify relevant gaps.
+
+        - Assumptions are labeled as provisional.
+
+        - No implementation leakage in the normative sentence.
+
+        - No invented behavior or silently added policy.
+
+        - The requirement contains exactly one `shall`.
+
+
+        The output is thorough, well-structured, and meets all the expected semantic
+        properties. The only very minor issue is that the output is somewhat verbose/repetitive
+        (the full package appears in both the artifact and the response text), but
+        this doesn''t detract from quality.
+
+
+        This is an excellent response that hits all required criteria.'
+      value: 5
+  case-004-optional-feature:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: Expected EARS syntax is present
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Material uncertainty remains gated
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'The output is excellent across all evaluation dimensions:
+
+
+        **Template Selection:** Correctly identifies "Optional feature" as the EARS
+        template. The Rationale and Context section explicitly explains why this is
+        not a runtime state ("while offline mode is active") or a discrete event,
+        but a product configuration condition — directly satisfying the required finding
+        of "distinguish an included capability from an ordinary runtime condition."
+
+
+        **Required Findings Met:**
+
+        1. "Distinguish an included capability from an ordinary runtime condition"
+        — explicitly addressed in Understanding ("conditional on an optional feature
+        being present, not on a runtime state or a discrete event"), in the Rationale
+        section, and in assumption A1.
+
+        2. "Identify selected-report and CSV observables" — Q2 addresses "selected
+        report" ambiguity, Q4 addresses CSV structure, and the verification contract
+        identifies both as observable evidence needing clarification.
+
+
+        **Disallowed Behaviors Avoided:**
+
+        1. Does not rewrite "Where" as a generic "If" branch — correctly preserves
+        the `Where` optional-feature pattern.
+
+        2. Does not decide how offline export is packaged — explicitly asks Q1 about
+        feature scope and labels it as unresolved.
+
+
+        **Readiness:** Correctly marked as `needs clarification` with five material
+        questions open, matching the expected readiness.
+
+
+        **Structural Separation:** All required sections are present and properly
+        separated:
+
+        - Understanding: clearly states outcome and boundary
+
+        - Clarifying Questions: five focused, high-value questions
+
+        - Candidate Requirements with Status, Template, Requirement, and both contracts
+
+        - Suggested Supporting Requirements with relationship labels (Required companion,
+        Failure-path companion, Boundary companion, Interface companion, Operational
+        companion)
+
+        - Consistency Findings: four gaps identified
+
+        - Assumptions: four labeled, provisional assumptions kept separate from candidates
+
+        - Rationale and Context: separated from normative content
+
+        - Review Status: clear summary
+
+
+        **Uncertainty Preservation:** The output never pretends questions were answered.
+        Unresolved terms are explicitly marked in the provisional EARS sentence with
+        [Q1]–[Q4] annotations. Contract fields reference open questions. Status is
+        correctly `needs clarification`.
+
+
+        **No Implementation Prescription:** No classes, frameworks, or implementation
+        choices are prescribed.
+
+
+        **Minor observations:** The output is somewhat verbose/repetitive (the full
+        package appears in both stdout and artifact, and the inline text repeats much
+        of what''s in the artifact), but this is not a quality defect — it''s following
+        the instruction to write to both locations. All contract fields are populated
+        or explicitly marked as unresolved. Supporting requirements use correct relationship
+        labels and are kept outside the candidate list.
+
+
+        The only very minor issue is that "Candidate 1" uses a slightly non-standard
+        field label "Requirement (provisional — unresolved terms marked)" instead
+        of the exact "Requirement:" from the template, but this is a trivial formatting
+        variation that actually adds clarity.
+
+
+        This is a near-ideal response for this case.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: '**Template selection:** The output correctly identifies the EARS
+        "Optional feature" pattern (`Where`). It explicitly explains why this is not
+        a runtime state (`While`) or a discrete event (`When`), noting it''s a product
+        configuration condition. This matches `expected_templates: [''optional feature'']`.
+
+
+        **Required findings:**
+
+        1. *"Distinguish an included capability from an ordinary runtime condition"*:
+        Clearly satisfied. The output states: "The source does not describe a runtime
+        state (''while offline mode is active'') or a discrete event. It describes
+        a product configuration condition — the feature is either included or not
+        — which is the defining characteristic of the `Where` pattern." Also in assumptions:
+        "This interpretation was chosen because the source uses it as a feature name
+        in the EARS `Where` clause, not as a description of runtime network state."
+
+        2. *"Identify selected-report and CSV observables"*: Satisfied. Q2 asks about
+        "selected report" (what determines it, who selects, single vs. batch). Q4
+        asks about CSV structure constraints. The verification contract identifies
+        both as observable elements that need definition.
+
+
+        **Disallowed behaviors:**
+
+        1. *"Rewrite Where as a generic If branch"*: Not violated. The output preserves
+        the `Where` pattern and does not convert it to `If...then`.
+
+        2. *"Decide how offline export is packaged"*: Not violated. The output explicitly
+        asks Q1 about what "offline export" means and does not decide it.
+
+
+        **Readiness:** Correctly marked `needs clarification` with material open questions.
+        No false-ready claim.
+
+
+        **Intent preservation:** The source intent is faithfully restated. No behavior
+        is invented or silently added.
+
+
+        **Implementation independence:** The requirement and contracts describe observable
+        behavior at the service boundary without prescribing implementation choices.
+
+
+        **Contracts:** Both implementability and verification contracts are thoroughly
+        filled out with all required fields. Unresolved items are explicitly linked
+        to clarifying questions.
+
+
+        **Clarifying questions:** Five focused, high-value questions (Q1-Q5) target
+        genuine ambiguities. They are specific and well-justified.
+
+
+        **Supporting requirements:** Five grounded suggestions (SR-A through SR-E)
+        with proper relationship labels, covering trigger, failure path, feature-absent
+        guard, CSV format, and content fidelity.
+
+
+        **Consistency findings:** Four gap findings identified, all well-grounded.
+        No invented conflicts.
+
+
+        **Format:** Complete portable package with all required sections present.
+        Written to artifacts/result.md as requested.
+
+
+        **Minor observations:** The output is very thorough, perhaps slightly over-questioning
+        on some points (e.g., Q3 about "downloadable" might be considered somewhat
+        pedantic given that "downloadable CSV file" is fairly clear), but this doesn''t
+        constitute a material flaw — asking rather than guessing is the correct approach.
+        The package is comprehensive, well-structured, and meets all evaluation criteria.'
+      value: 5
+  case-005-unwanted-behavior:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: Expected EARS syntax is present
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Material uncertainty remains gated
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'The output is exemplary across all evaluation criteria:
+
+
+        **Template Selection:** The timeout is correctly classified as an unwanted
+        condition, and the "Unwanted behavior" EARS pattern (`If ... then ...`) is
+        selected with explicit justification. This matches the expected template.
+
+
+        **Required Findings Met:**
+
+        1. "Classify the timeout as an unwanted condition" — Done explicitly in the
+        source classification table ("Unwanted condition") and in the Template field
+        ("Unwanted behavior").
+
+        2. "Ask for the Retry-After value or stated policy and caller-visible body
+        if material" — Question 1 directly asks for the Retry-After value/policy.
+        The caller-visible body question is addressed indirectly through Finding 3
+        (precedence question about error-response format/Content-Type).
+
+
+        **Readiness:** Correctly marked as `needs clarification`, matching the expected
+        readiness. The contracts explicitly mark open/unresolved/pending items and
+        the status is consistently `needs clarification` throughout.
+
+
+        **Disallowed Behaviors Avoided:**
+
+        - Does NOT silently choose a retry duration — the Retry-After value is explicitly
+        marked as unresolved and Question 1 asks for it.
+
+        - Does NOT treat the timeout as a normal successful response — it is clearly
+        treated as an unwanted/failure condition.
+
+
+        **Structural Separation:** All required sections are present and properly
+        separated:
+
+        - Understanding (with system boundary and source classification)
+
+        - Clarifying Questions (6 focused, material questions)
+
+        - Candidate Requirements (with proper Status, Template, Requirement fields)
+
+        - Implementability contract (all fields populated with explicit open/unresolved
+        markers)
+
+        - Verification contract (all fields populated with pending markers)
+
+        - Suggested Supporting Requirements (5 suggestions with proper relationship
+        labels, kept separate from candidates)
+
+        - Consistency Findings (3 findings: 2 gaps, 1 precedence question)
+
+        - Assumptions (4 provisional assumptions, each linked to clarifying questions)
+
+        - Rationale and Context
+
+        - Review Status
+
+
+        **Uncertainty Preservation:** Outstanding. Every unresolved item is explicitly
+        marked with **open**, **unresolved**, or **pending** and cross-referenced
+        to specific questions. Assumptions are labeled as provisional. The output
+        never claims approval or pretends questions were answered.
+
+
+        **Output Discipline:** The artifact was written to `artifacts/result.md` as
+        requested. The package follows the exact portable response format from the
+        reference. No Gherkin, no implementation specifics, no invented host metadata.
+
+
+        **Minor observations:** The only very minor note is that the response body
+        content (beyond the status code and header) is not explicitly asked about
+        as a standalone question, though it is touched on via Finding 3. This is a
+        trivial gap. The package is thorough, well-structured, and correctly handles
+        all the key evaluation criteria.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: 'Evaluating against the expected semantic properties:
+
+
+        **Template selection (expected: unwanted behavior):** The output correctly
+        selects "Unwanted behavior" as the EARS template, using the `If <condition>,
+        then the <system> shall <response>` form. The source classification table
+        explicitly labels "If the upstream identity provider times out" as an "Unwanted
+        condition," and the rationale explains why event-driven or state-driven patterns
+        don''t fit. This is fully correct.
+
+
+        **Required findings:**
+
+        1. "Classify the timeout as an unwanted condition" — Clearly done. The source
+        classification table labels it "Unwanted condition," the template is "Unwanted
+        behavior," and the Understanding section explains it''s "an unwanted failure
+        event (timeout of an external dependency)."
+
+        2. "Ask for the Retry-After value or stated policy and caller-visible body
+        if material" — The output asks explicitly about the Retry-After value (Q1),
+        its format (Q6), and also identifies this as a gap in consistency findings
+        (Finding 2). The caller-visible body is partially addressed through the precedence
+        question (Finding 3) about error-response format, though it''s not as directly
+        asked as the Retry-After value. This is mostly satisfied.
+
+
+        **Disallowed behaviors:**
+
+        1. "Silently choose a retry duration" — The output does NOT silently choose
+        a retry duration. It explicitly marks the Retry-After value as "unresolved"
+        and asks Q1 about what value to use. It also labels assumption A2 as provisional.
+        This is correctly avoided.
+
+        2. "Treat the timeout as a normal successful response" — The output clearly
+        treats the timeout as an unwanted/failure condition, not a normal response.
+        Correctly avoided.
+
+
+        **Readiness (expected: needs_clarification):** The output correctly marks
+        Candidate 1 as "needs clarification" with clear justification pointing to
+        unresolved Retry-After value, timeout definition, and scope. The overall package
+        is marked "Not ready for review."
+
+
+        **Package completeness:** All required sections are present (Understanding,
+        Clarifying Questions, Candidate Requirements with both contracts, Suggested
+        Supporting Requirements, Consistency Findings, Assumptions, Rationale and
+        Context, Review Status). The contracts are thorough with explicit "open,"
+        "unresolved," and "pending" markers that correctly trigger the needs_clarification
+        status.
+
+
+        **Quality of questions:** The six clarifying questions are focused and material.
+        Q1 (Retry-After value) is the highest-priority question matching the expected
+        findings. Q2 (timeout definition), Q3 (scope), Q4 (in-flight streaming), Q5
+        (split vs. atomic), and Q6 (format) are all reasonable.
+
+
+        **Supporting requirements:** SR-1 through SR-5 are well-grounded in the source,
+        with appropriate relationship labels. They cover timeout configuration, logging,
+        adjacent failure modes, rate limiting, and multi-provider behavior.
+
+
+        **Consistency findings:** Three findings are identified (2 gaps, 1 precedence
+        question), all reasonable and grounded.
+
+
+        **Implementation independence:** The requirement sentence and contracts describe
+        observable behavior at the gateway-caller boundary without prescribing implementation
+        details.
+
+
+        **Minor observations:** The output could have more explicitly asked about
+        the caller-visible response body (e.g., whether a JSON error body is required),
+        though the precedence question (Finding 3) touches on this. This is a minor
+        gap. The output is also somewhat verbose/repetitive between the artifact and
+        the inline response, but that''s a style issue not a quality issue.
+
+
+        Overall this is an excellent output that hits all the major expected properties
+        with only minor gaps.'
+      value: 5
+  case-006-complex-splitting:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: 'Missing template label: unwanted behavior'
+      value: false
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Material uncertainty remains gated
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'The generated response is exceptionally thorough and well-structured.
+        Let me evaluate against each criterion:
+
+
+        **Required findings coverage:**
+
+        1. "Explain that state and submission event jointly scope validation" — YES.
+        The Understanding section explicitly identifies the state ("while a batch
+        is in validation mode") and trigger ("when the operator submits it") as jointly
+        scoping the obligation. The Rationale section states: "both a state (validation
+        mode) and a discrete trigger (submission) are genuinely required to scope
+        each obligation. Neither condition alone is sufficient."
+
+
+        2. "Split validation from invalid-record notification when independently verified"
+        — YES. Two separate candidates are produced: Candidate 1 (validation) and
+        Candidate 2 (notification). The splitting rationale is explicitly stated:
+        "Validation and notification can be verified independently — one concerns
+        whether the service inspects records, the other concerns whether the operator
+        receives a message."
+
+
+        3. "Ask for notification channel and validation completion or partial-result
+        behavior" — YES. Q3 asks about notification channel/content, Q4 asks about
+        notification cardinality, Q5 asks about partial-completion behavior. These
+        are all present and well-formulated.
+
+
+        **Expected templates:**
+
+        - Complex template: Candidate 1 uses "Complex" — correct for the state+event
+        combination.
+
+        - Unwanted behavior: Candidate 2 uses "Complex (with embedded unwanted condition)"
+        which acknowledges the unwanted behavior pattern nested within the complex
+        scope. This is a thoughtful interpretation that recognizes the `if ... then`
+        unwanted condition is embedded in a complex scope, rather than forcing it
+        into one template or another. The requirement sentence itself includes the
+        `if ... then` clause.
+
+
+        **Disallowed behaviors:**
+
+        - "Force every behavior into one complex sentence" — NOT violated. Two candidates
+        are properly split.
+
+        - "Prescribe a validator or notification technology" — NOT violated. Q3 explicitly
+        asks about the channel rather than prescribing one. No technology choices
+        are embedded in the requirement sentences.
+
+
+        **Readiness:** Both candidates are marked "needs clarification" — matching
+        the expected "needs_clarification" readiness.
+
+
+        **Output structure and separation:**
+
+        - All required headings present: Understanding, Clarifying Questions, Candidate
+        Requirements, Suggested Supporting Requirements, Consistency Findings, Assumptions,
+        Rationale and Context, Review Status ✓
+
+        - Status fields correctly use "needs clarification" ✓
+
+        - Template fields present ✓
+
+        - Both implementability and verification contracts are fully populated with
+        all sub-fields ✓
+
+        - Open items are clearly marked with **Open:** tags ✓
+
+        - Assumptions are labeled as provisional and kept separate from candidates
+        ✓
+
+        - Supporting requirements are kept outside the candidate list with proper
+        relationship labels ✓
+
+        - Consistency findings include gaps, precedence questions with resolution
+        options ✓
+
+        - No Gherkin or implementation-specific test steps ✓
+
+        - No approval claimed ✓
+
+        - No uncertainty suppressed — all open items are surfaced ✓
+
+
+        **Minor observations:**
+
+        - The Template for Candidate 2 says "Complex (with embedded unwanted condition)"
+        rather than cleanly selecting "unwanted behavior" as a separate template.
+        However, this is actually a defensible and well-reasoned choice — the response
+        explains why the unwanted condition is nested within the complex scope. The
+        pattern note explicitly discusses this design decision.
+
+        - The artifact was written to result.md as requested.
+
+        - The package is duplicated in both the artifact and the final response text,
+        which is correct per the prompt instructions.
+
+
+        This is a near-exemplary output with proper separation of all information
+        kinds, preserved uncertainty, no invented approvals, and comprehensive coverage
+        of all required findings.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: 'Let me evaluate against each expected property:
+
+
+        **expected_templates: [''complex'', ''unwanted behavior'']**
+
+        - Candidate 1 is labeled "Complex" — correct, the state+event scoping genuinely
+        requires the complex pattern.
+
+        - Candidate 2 is labeled "Complex (with embedded unwanted condition)" — this
+        acknowledges the unwanted behavior dimension but doesn''t cleanly label it
+        as the "unwanted behavior" template. The output explains the nested `If …
+        then` within the complex scope and provides a pattern note. This is a reasonable
+        interpretation: the candidate genuinely requires both the state/event scope
+        AND the unwanted condition. However, the expected template list says "unwanted
+        behavior" as a separate template. The output does split the two behaviors
+        and recognizes the unwanted condition, but labels the template as "Complex
+        (with embedded unwanted condition)" rather than straightforwardly "Unwanted
+        behavior." This is a minor deviation — the analysis is thoughtful and the
+        rationale for the combined form is well-argued, though the expected answer
+        likely wanted a cleaner "Unwanted behavior" label for Candidate 2.
+
+
+        **required_findings:**
+
+        1. "explain that state and submission event jointly scope validation" — YES,
+        clearly explained in Understanding section and Rationale: "both a state (validation
+        mode) and a discrete trigger (submission) are genuinely required to scope
+        each obligation."
+
+        2. "split validation from invalid-record notification when independently verified"
+        — YES, explicitly done with clear splitting rationale: "Validation and notification
+        can be verified independently."
+
+        3. "ask for notification channel and validation completion or partial-result
+        behavior" — YES, Q3 asks about notification channel, Q4 asks about notification
+        granularity/cardinality, Q5 asks about partial-completion behavior.
+
+
+        **disallowed_behaviors:**
+
+        1. "force every behavior into one complex sentence" — NOT violated. Two separate
+        candidates are created.
+
+        2. "prescribe a validator or notification technology" — NOT violated. The
+        output explicitly marks channels and mechanisms as open questions and does
+        not prescribe specific technologies. Q3 lists options without choosing.
+
+
+        **readiness: needs_clarification** — Both candidates correctly marked "needs
+        clarification" with detailed blocking items. No false-ready claims.
+
+
+        **category: template-selection** — The output carefully considers template
+        selection and provides reasoning.
+
+
+        **Quality of the package:**
+
+        - Complete portable format with all required headings
+
+        - Detailed implementability and verification contracts
+
+        - Well-structured clarifying questions (7 questions, all focused and well-justified)
+
+        - Good supporting requirements (5 suggestions with proper relationship labels)
+
+        - Consistency findings are relevant and well-reasoned
+
+        - Assumptions are properly labeled as provisional
+
+        - No implementation leakage in normative sentences
+
+        - Intent is preserved
+
+
+        **Minor issues:**
+
+        - The template label for Candidate 2 could be more clearly "Unwanted behavior"
+        rather than "Complex (with embedded unwanted condition)." The output argues
+        for why it needs the complex scope too, which is reasonable but slightly deviates
+        from the expected clean split into complex + unwanted behavior templates.
+
+        - The output is very thorough, perhaps slightly over-detailed in places, but
+        this doesn''t harm quality.
+
+
+        Overall, this is an excellent response that hits all three required findings,
+        avoids both disallowed behaviors, correctly assigns needs_clarification status,
+        properly splits the behaviors, asks focused questions about notification channel
+        and partial-completion behavior, and provides complete contracts. The only
+        minor issue is the template labeling nuance for Candidate 2.'
+      value: 5
+  case-007-rough-api:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: Expected EARS syntax is present
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Material uncertainty remains gated
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'Let me evaluate the output against each criterion systematically.
+
+
+        **Disallowed behaviors check:**
+
+        1. "Put React, Redis, or PostgreSQL into a normative requirement" — The output
+        explicitly classifies all three as "Design idea" in the source material classification
+        table and excludes them from all normative EARS sentences. None of the five
+        candidate requirement sentences mention React, Redis, or PostgreSQL. ✓ Pass
+
+        2. "Invent a definition of graceful handling" — The output does NOT define
+        what "gracefully" means. It explicitly flags it as undefined (Q3), marks it
+        as "no agreed measure" in C4''s contract, and labels assumption A3 as "provisional
+        and subject to Q3." It does suggest C4 and C5 as companion candidates for
+        invalid-input and processing-failure paths, but explicitly states the observable
+        behavior is unresolved. ✓ Pass
+
+        3. "Mark the request ready" — All five candidates are marked "needs clarification."
+        The Review Status section explicitly states "No requirements have been approved."
+        ✓ Pass
+
+
+        **Required findings check:**
+
+        1. "Ask for invoice format, size, validation rules, upload trigger, and observable
+        result" — Q1 asks about file formats and size limits, Q2 asks about validation
+        rules ("bad invoice" definition), Q1/C1 address the upload trigger, Q5 asks
+        about the submission response, Q6 asks about observable result and retrieval.
+        ✓ Pass
+
+        2. "Separate the upload goal from the design ideas" — The source material
+        classification table explicitly separates "Users can upload invoices" (Goal/behavioral
+        obligation) from "Use a React form," "put the work on a Redis queue," and
+        "store the result in a PostgreSQL table" (all Design ideas). The Understanding
+        and Rationale sections reinforce this separation. ✓ Pass
+
+        3. "Suggest invalid-input and processing-failure companions without approving
+        them" — C4 (unwanted behavior: validation failure) and C5 (unwanted behavior:
+        processing failure) are drafted as candidates with "needs clarification" status.
+        SR-1 suggests file size/type constraints. These are all kept as suggestions
+        or unresolved candidates, not approved requirements. ✓ Pass
+
+
+        **Expected templates check:**
+
+        - "event-driven" — C1, C2, and C3 use Event-driven template. C4 and C5 use
+        Unwanted behavior template. The event-driven template is correctly used for
+        the upload trigger. ✓ Pass
+
+
+        **Readiness check:**
+
+        - Expected: "needs_clarification" — All candidates are marked "needs clarification."
+        ✓ Pass
+
+
+        **Structural quality:**
+
+        - All required sections present: Understanding, Clarifying Questions, Candidate
+        Requirements, Suggested Supporting Requirements, Consistency Findings, Assumptions,
+        Rationale and Context, Review Status ✓
+
+        - Each candidate has Status, Template, Requirement (EARS sentence), Source
+        intent, Implementability contract (all fields), Verification contract (all
+        fields) ✓
+
+        - Suggestions are kept outside the candidate list with proper relationship
+        labels ✓
+
+        - Consistency findings identify gaps, precedence questions, and overlap risks
+        ✓
+
+        - Assumptions are labeled as provisional ✓
+
+        - The package is written to artifacts/result.md as requested ✓
+
+
+        **Minor observations:**
+
+        - C1''s requirement sentence contains "accept the submission and return an
+        acknowledgement" which could be argued as two independent obligations that
+        should be split. However, accepting and acknowledging could reasonably be
+        seen as a single atomic response.
+
+        - A3 states "Gracefully means the user is informed" which could be seen as
+        slightly inventing a definition, but it''s explicitly labeled as "provisional
+        and subject to Q3" — this is an assumption, not a normative definition, and
+        the uncertainty is preserved.
+
+        - The output is thorough, well-structured, and maintains clear separation
+        between all information types.
+
+
+        This is an excellent output that hits all required findings, avoids all disallowed
+        behaviors, maintains proper uncertainty throughout, and follows the portable
+        response format precisely.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: 'Let me evaluate against each criterion systematically:
+
+
+        **Disallowed behaviors:**
+
+        1. "Put React, Redis, or PostgreSQL into a normative requirement" — PASS.
+        None of the five candidate EARS sentences mention React, Redis, or PostgreSQL.
+        The source material classification table explicitly labels them as "Design
+        idea" and they are excluded from normative sentences. The Assumptions section
+        (A1) explicitly states they are excluded.
+
+        2. "Invent a definition of graceful handling" — PASS. The output does NOT
+        define what "gracefully" means. It flags "gracefully" as having "no agreed
+        measure" (Q3) and A3 explicitly labels the interpretation as "provisional
+        and subject to Q3." C4 and C5 suggest failure companions but leave the observable
+        behavior unresolved, asking the user to define it.
+
+        3. "Mark the request ready" — PASS. All five candidates are marked "needs
+        clarification." The Review Status section explicitly states "No requirements
+        have been approved."
+
+
+        **Expected templates:** "event-driven" — PASS. C1, C2, C3 use Event-driven
+        template. C4 and C5 use Unwanted behavior template, which is appropriate for
+        failure paths. The event-driven template is used for the core upload behavior,
+        which is correct.
+
+
+        **Readiness:** "needs_clarification" — PASS. All candidates are marked "needs
+        clarification."
+
+
+        **Required findings:**
+
+        1. "Ask for invoice format, size, validation rules, upload trigger, and observable
+        result" — PASS. Q1 asks for file formats and size limits. Q2 asks for validation
+        rules (definition of "bad invoice"). The upload trigger is addressed in C1''s
+        event-driven pattern. Q6 asks for the observable result and retrieval mechanism.
+        Q5 asks about the submission response.
+
+        2. "Separate the upload goal from the design ideas" — PASS. The source material
+        classification table explicitly separates "Users can upload invoices" (Goal)
+        from React, Redis, PostgreSQL (Design ideas). The Understanding section, Assumptions
+        A1, and Rationale and Context all reinforce this separation.
+
+        3. "Suggest invalid-input and processing-failure companions without approving
+        them" — PASS. C4 (synchronous rejection/validation failure) and C5 (asynchronous
+        processing failure) are presented as candidates with "needs clarification"
+        status — they are not approved. SR-1 (file size/type constraint) and SR-5
+        (processing timeout/retry) are suggested supporting requirements kept outside
+        the candidate list. The output explicitly suggests failure-path and boundary
+        companions without promoting them to approved requirements.
+
+
+        **Quality of the package:**
+
+        - The EARS sentences are well-formed with single "shall" per candidate
+
+        - Implementability and verification contracts are thorough with clear unresolved
+        items linked to specific questions
+
+        - Consistency findings identify meaningful gaps and overlaps (retrieval path
+        gap, validation vs. processing failure boundary, "bad invoice" overlap)
+
+        - The package follows the portable response format exactly
+
+        - Questions are focused and high-value, each justified by the "two reasonable
+        implementers" standard
+
+        - Supporting requirements use correct relationship labels
+
+
+        **Minor observations:**
+
+        - C1''s requirement says "accept the submission and return an acknowledgement"
+        which contains two independently testable responses joined by "and" — this
+        could arguably be split per the skill''s own rules. However, "accept and return
+        acknowledgement" is arguably a single observable response at the boundary.
+
+        - A3 does interpret "gracefully" provisionally as "the user receives an observable,
+        actionable signal" — but it''s explicitly labeled as provisional and subject
+        to Q3, so this doesn''t cross into inventing a definition.
+
+        - The package is thorough and comprehensive, perhaps slightly verbose but
+        that''s not a fault.
+
+
+        Overall this is an excellent output that satisfies all required findings,
+        avoids all disallowed behaviors, uses appropriate templates, maintains needs_clarification
+        status, and produces a complete, well-structured package.'
+      value: 5
+  case-008-vague-ui:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: The case has no required EARS template
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: The case intentionally has no expected template
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Material uncertainty remains gated
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'The generated response is exemplary across all evaluation criteria:
+
+
+        **Reject false readiness (required finding 1):** Both candidates are explicitly
+        marked `needs clarification` with `Template: unresolved`. The Review Status
+        table confirms "No candidate is `ready for review`." The Understanding section
+        states the source "cannot be implemented or verified by two independent teams
+        in the same way." False readiness is clearly rejected.
+
+
+        **Ask for interaction, workload, device scope, response-time measure, and
+        pass-fail observation (required finding 2):** The Clarifying Questions section
+        asks about: (1) which meaning of "responsive" (interaction vs layout), (2)
+        system name, (3) device scope/breakpoints/orientations, (4) maximum acceptable
+        delay in milliseconds (response-time measure), (5) verifiable oracle (pass/fail
+        observation), and (6) conditions of applicability. Workload is addressed implicitly
+        through the interaction/load context in verification contracts ("behavior
+        when the system is under load"). All five required question topics are covered.
+
+
+        **Disallowed behaviors check:**
+
+        - Does not rewrite "responsive" as "quickly" without a measure — instead flags
+        the ambiguity and asks for measures.
+
+        - Does not invent a latency target or device set — all values are explicitly
+        marked "unresolved."
+
+        - Does not present the claim as ready for review — both candidates are `needs
+        clarification`.
+
+
+        **Section separation:** The package uses all required headings: Understanding,
+        Clarifying Questions, Candidate Requirements (with full implementability and
+        verification contracts), Suggested Supporting Requirements, Consistency Findings,
+        Assumptions, Rationale and Context, and Review Status. Each section serves
+        its intended purpose without mixing concerns.
+
+
+        **Contract completeness:** Both implementability and verification contracts
+        enumerate every required field and consistently mark them "unresolved" with
+        specific explanations of what is missing.
+
+
+        **Suggestions vs. candidates:** Supporting requirements are explicitly labeled
+        "suggestions only" and "None is an approved requirement," properly separated
+        from the candidate list with relationship labels and reasons.
+
+
+        **Assumptions:** Clearly labeled as provisional and not requirements.
+
+
+        **Consistency findings:** Three findings (overlap, gap, vacuous risk) are
+        well-structured with kind, condition, and resolution options. No priority
+        is invented.
+
+
+        **Output discipline:** The artifact was written to `artifacts/result.md` as
+        requested and the same content appears in the final response. The package
+        follows the portable response format exactly.
+
+
+        The only very minor observation is that "workload" as a question topic is
+        not asked as a standalone explicit question (e.g., "under what user/data load
+        conditions should the requirement hold?"), but it is implicitly covered in
+        the verification contracts'' boundary/failure cases mentioning "under load."
+        This is a marginal presentation nuance, not a substantive gap.
+
+
+        Overall this is a near-perfect response that handles this readiness-gating
+        case exactly as intended.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: 'Evaluating against the expected semantic properties:
+
+
+        **readiness: needs_clarification** — Both candidates are explicitly marked
+        `needs clarification`. The Review Status table clearly states "No candidate
+        is `ready for review`." This is correct.
+
+
+        **required_findings:**
+
+        1. "reject false readiness" — Fully satisfied. The output explicitly rejects
+        readiness, explaining that the source "cannot be implemented or verified by
+        two independent teams in the same way" and both contracts are incomplete.
+
+        2. "ask for interaction, workload, device scope, response-time measure, and
+        pass-fail observation" — The clarifying questions cover: interaction (Q1 asks
+        which meaning of "responsive"), workload (Q4 mentions load indirectly, Q6
+        asks about conditions), device scope (Q3 asks for viewport widths/device classes/breakpoints/orientations),
+        response-time measure (Q4 asks for maximum acceptable delay in milliseconds),
+        and pass-fail observation (Q5 asks for the verifiable oracle). All five aspects
+        are covered.
+
+
+        **disallowed_behaviors:**
+
+        1. "rewrite responsive as quickly without a measure" — Not violated. The output
+        does not rewrite "responsive" as "quickly" or any synonym without a measure.
+
+        2. "invent a latency target or device set" — Not violated. The output explicitly
+        marks all such values as "unresolved" and does not invent specific numbers
+        or device lists (the examples in Q3 are illustrative, not normative).
+
+        3. "present the claim as ready for review" — Not violated. Both candidates
+        are `needs clarification`.
+
+
+        **Template: unresolved** — Both candidates use `Template: unresolved`, which
+        is appropriate since the EARS pattern cannot be selected without guessing.
+
+
+        **Package structure:** Complete portable Requirements Elicitation Package
+        with all required sections (Understanding, Clarifying Questions, Candidate
+        Requirements with full implementability and verification contracts, Suggested
+        Supporting Requirements, Consistency Findings, Assumptions, Rationale and
+        Context, Review Status). Written to artifacts/result.md as requested.
+
+
+        **Quality observations:**
+
+        - The output thoughtfully disambiguates "responsive" into two interpretations
+        (layout vs. interaction) without inventing behavior.
+
+        - Both implementability and verification contracts are thoroughly filled out
+        with "unresolved" markers.
+
+        - Supporting requirements are well-grounded and properly labeled with relationship
+        types.
+
+        - Consistency findings (overlap, gap, vacuous risk) are relevant and well-reasoned.
+
+        - Assumptions are clearly separated and marked provisional.
+
+        - No implementation leakage in normative sentences.
+
+
+        The output is exemplary — it satisfies all required findings, avoids all disallowed
+        behaviors, maintains the correct readiness status, uses appropriate templates,
+        asks focused questions covering all the expected areas, and provides a thorough,
+        well-structured package.'
+      value: 5
+  case-009-broad-security:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: The case has no required EARS template
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: The case intentionally has no expected template
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Material uncertainty remains gated
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'The output is exemplary across all evaluation dimensions:
+
+
+        **Required findings — all met:**
+
+        1. **Rejects the unbounded absence claim:** The Understanding section explicitly
+        states "This is a goal statement, not a bounded behavioral obligation" and
+        explains why it "cannot be directly promoted to a ready requirement." The
+        Rationale section enumerates five specific reasons the source fails both contracts.
+
+        2. **Asks for threat scope, vulnerability classes, assessment method, severity
+        threshold, and release boundary:** Q2 (threat scope/vulnerability classes),
+        Q3 (severity threshold), Q4 (assessment method), Q5 (release boundary/lifecycle
+        gate) directly correspond. Additional questions (Q1 system boundary, Q6 remediation,
+        Q7 scope of "contain", Q8 actor model) add value without padding.
+
+        3. **Proposes concrete security behavior and scoped assurance criteria separately:**
+        SR-1 through SR-7 propose specific decomposition directions (dependency scanning,
+        static analysis gate, remediation deadlines, auth/authz boundary, evidence
+        retention, exception process, scope definition), each labeled as a suggestion
+        with relationship type, kept outside the candidate list.
+
+
+        **Disallowed behaviors — none violated:**
+
+        - Does not claim a system can be proven vulnerability-free; explicitly notes
+        "No realistic system achieves zero findings continuously" (SR-6).
+
+        - Does not substitute "securely" or "appropriately" — flags these as vague
+        terms per the skill guidance.
+
+        - Does not invent a scanner, standard, or severity policy — mentions OWASP,
+        CWE, CVSS, SAST, DAST, SCA only as examples in questions, not as assumed or
+        prescribed standards. A3 explicitly states "No specific taxonomy is assumed."
+
+
+        **Structure and separation:**
+
+        - All required portable package sections present: Understanding, Clarifying
+        Questions, Candidate Requirements (with full implementability and verification
+        contracts), Suggested Supporting Requirements, Consistency Findings, Assumptions,
+        Rationale and Context, Review Status.
+
+        - Candidate 1 correctly marked `needs clarification` with `Template: unresolved`.
+
+        - Every contract field explicitly marked **open** with cross-references to
+        blocking questions.
+
+        - Suggestions clearly separated from candidates with relationship labels.
+
+        - Assumptions labeled provisional.
+
+        - Consistency findings identify gaps and precedence questions without resolving
+        them.
+
+        - Overall status correctly declared as `needs clarification`.
+
+        - No approval claimed, no implementation prescribed, no uncertainty suppressed.
+
+
+        **Output separation:**
+
+        - Package written to artifacts/result.md and also returned in the final response
+        text — both copies are consistent.
+
+
+        **Minor observations:**
+
+        - The output is thorough but not padded; every section serves a purpose.
+
+        - The inline response and artifact are near-identical (minor wording differences),
+        which is fine.
+
+
+        This is a near-perfect execution of the readiness-gating pattern for an unbounded
+        security claim.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: 'Evaluating against the expected semantic properties:
+
+
+        **Readiness: needs_clarification** — The output correctly marks Candidate
+        1 as `needs clarification` with `Template: unresolved`. The overall package
+        status is explicitly "needs clarification." This is exactly correct.
+
+
+        **Required finding 1: "reject the unbounded absence claim"** — The output
+        explicitly rejects the source statement as an unbounded absence claim. In
+        the Understanding section: "This is a goal statement, not a bounded behavioral
+        obligation." In the Rationale section, it explains five specific reasons why
+        the claim fails both contracts, including "''Does not contain'' is a state
+        of an artifact, not an observable system response at a boundary." The output
+        clearly identifies that a system cannot be proven vulnerability-free (SR-6
+        notes "No realistic system achieves zero findings continuously"). This is
+        well satisfied.
+
+
+        **Required finding 2: "ask for threat scope, vulnerability classes, assessment
+        method, severity threshold, and release boundary"** — Q2 asks for threat scope
+        and vulnerability classes, Q4 asks for assessment method, Q3 asks for severity
+        threshold, and Q5 asks for assessment frequency/lifecycle gate (release boundary).
+        All five specific items are covered. Additionally, Q1 (system boundary), Q6
+        (remediation), Q7 (scope of "contain"), and Q8 (actor model) are asked. Well
+        satisfied.
+
+
+        **Required finding 3: "propose concrete security behavior and scoped assurance
+        criteria separately"** — The Suggested Supporting Requirements section (SR-1
+        through SR-7) proposes concrete security behaviors: dependency vulnerability
+        scanning, static analysis gates, remediation deadlines, authentication/authorization
+        boundaries, evidence records, exception processes, and scope definitions.
+        These are kept separate from the candidate as suggestions, not promoted to
+        approved requirements. The output explicitly states "These suggestions illustrate
+        how the source goal decomposes once clarifying answers are received. None
+        is an approved requirement." Well satisfied.
+
+
+        **Disallowed behaviors:**
+
+        1. "claim a system can be proven vulnerability-free" — Not violated. The output
+        explicitly states the opposite.
+
+        2. "substitute ''securely'' or ''appropriately''" — Not violated. No vague
+        substitutions are made.
+
+        3. "invent a scanner, standard, or severity policy" — The output mentions
+        SAST, DAST, SCA, OWASP, CWE, CVSS as *examples* in questions, not as prescribed
+        solutions. It does not invent or mandate any specific scanner, standard, or
+        policy. The examples are offered as clarification aids within questions. This
+        is borderline but acceptable — the output frames them as "Examples:" to help
+        the requester answer, not as normative choices. Not violated.
+
+
+        **Expected templates: []** — The output uses `Template: unresolved`, which
+        is correct when no template can be determined.
+
+
+        **Format and structure:** The output follows the portable response format
+        exactly, with all required sections present. Both implementability and verification
+        contracts are fully populated with "open" markers linked to specific questions.
+        The consistency findings identify meaningful gaps and a precedence question.
+        Assumptions are clearly labeled as provisional.
+
+
+        **Minor observations:** The output is quite thorough and well-structured.
+        It could be noted that mentioning specific tools like SAST/DAST/SCA in the
+        questions approaches the boundary of the "invent a scanner" disallowed behavior,
+        but since these are presented as examples within questions rather than prescribed
+        solutions, this is acceptable. The supporting requirements SR-1 and SR-2 do
+        mention specific assessment methods (dependency scanning, static analysis)
+        which slightly risk implying these are the right methods, but they are clearly
+        labeled as suggestions pending clarification answers.
+
+
+        Overall, this is an excellent response that hits all required findings, avoids
+        all disallowed behaviors, correctly gates readiness, and provides a comprehensive,
+        well-structured package.'
+      value: 5
+  case-010-supporting-requirements:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: Expected EARS syntax is present
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Mixed case has no ready candidate
+      value: false
+    review_discipline:
+      judge_type: llm
+      rationale: 'Let me evaluate the output against each required finding and criterion:
+
+
+        **Required Finding 1: "explain the submission event and preserve the validity
+        definition"**
+
+        - Both candidates use the event-driven template with "When a client submits
+        a valid order" as the trigger. The validity definition ("at least one product
+        identifier and a positive quantity for each product") is preserved in the
+        implementability contracts'' inputs and data definitions sections, and restated
+        in the Understanding section. ✓
+
+
+        **Required Finding 2: "suggest grounded invalid-input, duplicate-submission,
+        persistence, and dependency-failure companions"**
+
+        - SR-1 covers invalid-input (failure-path companion). ✓
+
+        - SR-3 covers duplicate-submission/idempotency (optional consideration). ✓
+
+        - SR-2 covers uniqueness (boundary companion), and Q2/Assumption 4 address
+        persistence. ✓
+
+        - Dependency-failure is not explicitly suggested as a supporting requirement.
+        The output does not include a companion for what happens when the order service
+        itself encounters a dependency failure (e.g., database down, downstream service
+        unavailable). This is a minor gap. ✗
+
+
+        **Required Finding 3: "keep suggestions separate from the primary requirement"**
+
+        - Suggestions are clearly in the "Suggested Supporting Requirements" section,
+        separate from "Candidate Requirements." Each suggestion has its own status
+        and is explicitly labeled as a draft, not normative until accepted. ✓
+
+
+        **Disallowed behaviors:**
+
+        - "invent idempotency policy as an approved requirement": SR-3 is labeled
+        "optional consideration" with placeholder "[assign a new identifier | return
+        the existing identifier]" — not invented as approved. ✓
+
+        - "prescribe an identifier format or database": Q1 asks about format but doesn''t
+        prescribe one. No database mentioned. ✓
+
+        - "dump unrelated security or accessibility checklists": Not present. ✓
+
+
+        **Expected template: event-driven** — Both candidates correctly use Event-driven.
+        ✓
+
+
+        **Readiness: mixed** — Candidates are at "candidate" status (not "ready for
+        review"), with open questions listed. This correctly reflects mixed readiness.
+        ✓
+
+
+        **Structural quality:**
+
+        - All required sections present: Understanding, Clarifying Questions, Candidate
+        Requirements, Suggested Supporting Requirements, Consistency Findings, Assumptions,
+        Rationale and Context, Review Status. ✓
+
+        - Both implementability and verification contracts are fully populated with
+        all required fields. ✓
+
+        - Assumptions are clearly labeled and separated. ✓
+
+        - Consistency findings identify gaps without inventing resolutions. ✓
+
+
+        **Minor issues:**
+
+        1. Candidate 1''s implementability contract mentions "Candidate 3 (suggested)"
+        which doesn''t exist — it should say SR-1. This is corrected in the final
+        response text but present in the artifact file. Minor inconsistency.
+
+        2. The dependency-failure companion is missing from the suggestions. The required_findings
+        ask for "dependency-failure companions" but there''s no SR addressing what
+        happens when the order service cannot reach its own persistence layer or other
+        dependencies.
+
+        3. Candidate 1 adds "unique" to the requirement text ("shall assign a unique
+        order identifier") which slightly extends beyond the source, though this is
+        flagged as unresolved in Q1 and SR-2. This could be seen as a minor overreach,
+        but it''s handled transparently.
+
+
+        **Overall assessment:** The output is exceptionally well-structured with clear
+        separation between candidates, suggestions, assumptions, and findings. It
+        preserves uncertainty throughout, doesn''t claim approval, and keeps suggestions
+        visibly separate. The missing dependency-failure companion is a notable gap
+        against the required findings, but the overall quality is very high. The minor
+        "Candidate 3" reference error and missing dependency-failure suggestion prevent
+        a perfect score.'
+      value: 4
+    semantic_quality:
+      judge_type: llm
+      rationale: "Let me evaluate against each criterion systematically:\n\n**Expected\
+        \ template (event-driven):** Both Candidate 1 and Candidate 2 correctly use\
+        \ the Event-driven template with \"When a client submits a valid order...\"\
+        \ — this matches the expected template perfectly.\n\n**Required findings:**\n\
+        \n1. *\"Explain the submission event and preserve the validity definition\"\
+        *: The package clearly identifies submission as a discrete event (trigger),\
+        \ and the validity definition (\"at least one product identifier and a positive\
+        \ quantity for each product\") is preserved in the Understanding section,\
+        \ in both implementability contracts' inputs and data definitions, and discussed\
+        \ in the Rationale. Well done.\n\n2. *\"Suggest grounded invalid-input, duplicate-submission,\
+        \ persistence, and dependency-failure companions\"*: \n   - Invalid-input:\
+        \ SR-1 (failure-path companion) covers invalid order submissions — ✓\n   -\
+        \ Duplicate-submission: SR-3 (optional consideration) covers idempotency —\
+        \ ✓\n   - Persistence: Addressed as Clarifying Question 2 and Assumption 4\
+        \ — ✓\n   - Dependency-failure: This is not explicitly addressed as a supporting\
+        \ requirement. There's no SR suggesting what happens if an internal dependency\
+        \ (e.g., an ID generation service or a downstream system) fails during order\
+        \ processing. This is a minor gap, though SR-4 touches on the interaction\
+        \ model.\n\n3. *\"Keep suggestions separate from the primary requirement\"\
+        *: All four supporting requirements (SR-1 through SR-4) are clearly placed\
+        \ in the \"Suggested Supporting Requirements\" section, separate from the\
+        \ two candidate requirements. Each is explicitly marked with its status and\
+        \ labeled as a suggestion/draft. The idempotency companion (SR-3) is explicitly\
+        \ labeled \"optional consideration\" and \"not normative until accepted.\"\
+        \ ✓\n\n**Disallowed behaviors:**\n\n1. *\"Invent idempotency policy as an\
+        \ approved requirement\"*: SR-3 is correctly labeled as \"optional consideration\"\
+        \ with bracketed alternatives `[assign a new identifier | return the existing\
+        \ identifier]` and explicitly says \"not normative until accepted.\" It asks\
+        \ whether this is in scope rather than declaring a policy. ✓ No violation.\n\
+        \n2. *\"Prescribe an identifier format or database\"*: The package asks about\
+        \ format (Q1) without prescribing one. No database tables, schemas, or specific\
+        \ technologies are mentioned in the normative sentences. ✓ No violation.\n\
+        \n3. *\"Dump unrelated security or accessibility checklists\"*: The suggestions\
+        \ are all grounded in the source request. No unrelated quality attributes\
+        \ are dumped. ✓ No violation.\n\n**Readiness assessment:** Both candidates\
+        \ are marked \"candidate\" (not \"ready for review\"), which is appropriate\
+        \ given the open questions. The package acknowledges that material questions\
+        \ remain. However, there's a subtle tension: the implementability contracts\
+        \ contain unresolved items (e.g., \"Identifier uniqueness scope is unresolved\"\
+        ), and per the skill's Final Output Invariants, if the contract contains \"\
+        unresolved,\" the status should be \"needs clarification,\" not \"candidate.\"\
+        \ The output tries to justify this by saying the contracts are \"complete\
+        \ modulo the open questions\" — but this is borderline. The skill rules say\
+        \ \"if its implementability or verification contract contains 'open', 'unresolved',\
+        \ 'pending', 'incomplete', or a material unanswered question, its status must\
+        \ be exactly 'needs clarification'.\" By containing \"unresolved\" in the\
+        \ domain terms field, both candidates arguably should be \"needs clarification\"\
+        \ rather than \"candidate.\" This is a status assignment concern but doesn't\
+        \ constitute a \"false-ready\" claim — it's more conservative than marking\
+        \ ready.\n\n**Additional quality observations:**\n- The split of \"assign\"\
+        \ and \"return\" into two candidates is well-justified and appropriate.\n\
+        - The EARS sentences each contain exactly one \"shall.\"\n- Implementation\
+        \ details are kept out of the normative sentences.\n- Clarifying questions\
+        \ are focused and high-value.\n- Consistency findings identify relevant gaps.\n\
+        - Assumptions are clearly labeled and tied to clarifying questions.\n\n**Minor\
+        \ issues:**\n- Candidate 1's implementability contract references \"Candidate\
+        \ 3 (suggested)\" which doesn't exist — should say SR-1. This is corrected\
+        \ in the final response version.\n- Missing a dependency-failure companion\
+        \ (e.g., what if the identifier generation mechanism fails).\n- The status\
+        \ of \"candidate\" vs \"needs clarification\" is arguably incorrect given\
+        \ unresolved items in contracts, though this doesn't harm the package's usefulness.\n\
+        - Candidate 1 adds \"unique\" to the requirement text (\"assign a unique order\
+        \ identifier\") which goes slightly beyond what the source states — though\
+        \ this is addressed as SR-2 as well, creating some overlap. The source says\
+        \ \"assign an order identifier\" without \"unique.\"\n\nOverall, this is a\
+        \ high-quality package that meets nearly all required findings, avoids all\
+        \ disallowed behaviors, uses the correct template, preserves intent, and keeps\
+        \ suggestions clearly separate. The minor issues (missing dependency-failure\
+        \ companion, adding \"unique\" to C1's normative sentence beyond source, and\
+        \ the candidate vs needs-clarification status question) prevent a perfect\
+        \ score."
+      value: 4
+  case-011-conflicting-set:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: A normative sentence contains more than one shall
+      value: false
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Material uncertainty remains gated
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'The output excels across all evaluation criteria:
+
+
+        **Required findings — all present:**
+
+        1. **Direct conflict identified:** The Consistency Findings section explicitly
+        labels "Finding 1 — Direct conflict (R1, R2)" with a comparison table showing
+        identical triggers and incompatible responses. The Understanding section also
+        states upfront: "R1 and R2 cannot both be satisfied for the same duplicate
+        submission event."
+
+        2. **Two incompatible responses shown:** The table and narrative clearly contrast
+        "return identifier of existing order" vs. "create new order; return new identifier"
+        and explain the consequence ("They cannot both be satisfied for any single
+        duplicate submission event").
+
+        3. **Asks user to choose/define precedence:** Q1 offers three options (A:
+        idempotent, B: non-idempotent, C: condition-based differentiation) and explicitly
+        states "This question must be answered before either candidate can advance."
+        Resolution options include narrowing, choosing one, precedence rule, or asking
+        the source — never inventing priority.
+
+
+        **Disallowed behaviors — none present:**
+
+        - Does not choose idempotence or new-order behavior — both candidates remain
+        at `needs clarification` and drafting is explicitly marked as blocked.
+
+        - Goes far beyond reporting textual similarity or duplication — correctly
+        identifies a semantic conflict with incompatible responses under identical
+        conditions.
+
+
+        **Structural separation — excellent:**
+
+        - Understanding, Clarifying Questions, Candidate Requirements (with full implementability
+        and verification contracts), Suggested Supporting Requirements, Consistency
+        Findings, Assumptions, Rationale and Context, and Review Status are all present
+        as distinct sections with the prescribed headings.
+
+        - Assumptions are labeled as provisional and clearly separated from normative
+        sentences.
+
+        - Supporting requirements are kept outside the candidate list with proper
+        relationship labels.
+
+        - Rationale is separated from obligations.
+
+
+        **Readiness and status — correct:**
+
+        - Both candidates marked `needs clarification` with explicit blocking reasons.
+
+        - Final Review Status table summarizes blocking reasons per candidate.
+
+        - No approval claimed; status described as elicitation response status only.
+
+
+        **Template selection — correct:**
+
+        - Both candidates use Event-driven template, matching the expected `event-driven`
+        template. The trigger is a discrete boundary event (client submits a duplicate
+        order).
+
+
+        **Contracts — thorough:**
+
+        - Both implementability and verification contracts are fully populated with
+        explicit "unresolved" markers cross-referencing questions.
+
+        - R2''s verification contract correctly notes it is not observable at the
+        boundary alone and explains why.
+
+
+        **Additional quality:**
+
+        - The note on splitting for R2 (two `shall` clauses) shows awareness of the
+        one-shall-per-requirement rule while explaining why they''re kept together.
+
+        - Supporting requirements are well-grounded (failure path, duplicate definition,
+        non-duplicate path, concurrency).
+
+        - The Rationale section provides excellent context about idempotent vs. non-idempotent
+        policy implications without choosing.
+
+        - The artifact was written to `artifacts/result.md` as requested.
+
+
+        **Minor observation:** The output is quite verbose/repetitive between the
+        file write and inline response, but this is a formatting choice, not a quality
+        issue. No substantive omissions or errors found.
+
+
+        This is an exemplary response that fully meets all criteria for a score of
+        5.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: 'The output excels across all required dimensions:
+
+
+        **Required findings — all met:**
+
+        1. *Identify a direct conflict between R1 and R2 under the duplicate-order
+        condition:* Finding 1 in the Consistency Findings section explicitly identifies
+        this as a "Direct conflict" with a normalized table showing same system, same
+        trigger, opposite responses. The Understanding section also states it upfront.
+
+        2. *Show the two incompatible responses and likely consequence:* The output
+        clearly states "Both requirements apply to identical conditions and mandate
+        opposite observable responses. They cannot both be satisfied for any single
+        duplicate submission event." It labels R1 as idempotent (return existing ID)
+        and R2 as non-idempotent (create new order, return new ID).
+
+        3. *Ask the user to choose or define an explicit condition or precedence:*
+        Q1 is the blocking clarifying question with three explicit options (A: idempotent,
+        B: non-idempotent, C: differentiating condition). Resolution options in the
+        consistency finding include narrowing, choosing one, precedence rule, or asking
+        the source.
+
+
+        **Disallowed behaviors — none violated:**
+
+        - Does not choose idempotence or new-order behavior without user authority.
+        Explicitly states "The decision belongs to the requirement owner."
+
+        - Does not report only textual similarity or duplicate — correctly identifies
+        this as a semantic conflict with incompatible responses, not mere duplication.
+
+
+        **Expected template (event-driven):** Both candidates correctly use the event-driven
+        template, which is appropriate since "client submits a duplicate order" is
+        a discrete boundary event.
+
+
+        **Readiness (needs_clarification):** Both candidates are correctly marked
+        `needs clarification`. The Review Status table clearly shows blocking reasons.
+        No false-ready claim.
+
+
+        **Additional quality:**
+
+        - Complete portable package with all required sections
+
+        - Both implementability and verification contracts are thorough and properly
+        cross-reference unresolved questions
+
+        - Supporting requirements are well-grounded (failure path, duplicate definition,
+        non-duplicate path, concurrency)
+
+        - Assumptions are clearly labeled and reasonable
+
+        - Rationale and Context section provides excellent domain analysis of idempotent
+        vs. non-idempotent policies without choosing one
+
+        - The note on R2-revised about splitting two `shall` obligations shows careful
+        attention to the single-shall rule
+
+        - No implementation leakage in normative sentences
+
+        - Written to artifacts/result.md as requested
+
+
+        **Minor observations (not material):**
+
+        - The package is verbose but thorough — no material omissions
+
+        - Q2-Q5 are reasonable secondary questions that don''t overreach
+
+
+        This is an exemplary response that hits every required finding, avoids all
+        disallowed behaviors, uses the correct template, maintains proper readiness
+        status, and provides a complete, well-structured package.'
+      value: 5
+  case-012-host-independent:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: Expected EARS syntax is present
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Mixed candidate readiness is represented
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: 'The generated output is exceptionally thorough and well-structured.
+        Let me evaluate against each required finding and criterion:
+
+
+        **Required findings:**
+
+        1. **Preserve BILL-REQ-42, both tags, and the trace link:** ✅ The host metadata
+        block at the top preserves `BILL-REQ-42`, tags `[billing, external-api]`,
+        and trace `interface://billing/v2/charge` exactly.
+
+
+        2. **Identify the API boundary and 500 ms measurement boundary:** ✅ The Understanding
+        section explicitly names the service boundary at `interface://billing/v2/charge`
+        and precisely describes the timing scope (clock starts when request body received
+        and parsed, ends when final response byte emitted). Candidate 3''s verification
+        contract further elaborates on the observability of these clock events.
+
+
+        3. **Ask about amount precision and the scope of terminal indeterminate behavior:**
+        ✅ Q4 asks about amount precision (minimum value, decimal places, representation).
+        Q2 asks about the observable meaning of "terminal" with specific options.
+        Candidate 2 is correctly marked `needs clarification` with Template: Unresolved.
+
+
+        4. **Avoid ProtoBot-specific terms, storage, or approval states:** ✅ No ProtoBot
+        terminology, no Drafting Table, no change-set workflow. The final line explicitly
+        states "No candidates are approved. This package is the output of elicitation;
+        approval is a host responsibility."
+
+
+        **Disallowed behaviors:**
+
+        - No replaced or invented identifiers ✅
+
+        - No claim of host approval ✅
+
+        - No Drafting Table or change-set workflow ✅
+
+
+        **Structure and separation:**
+
+        - Understanding section: clearly restates outcome and boundary ✅
+
+        - Source material sorted by kind (behavioral obligation, constraint, timing
+        definition, design hint, assumption) ✅
+
+        - Clarifying Questions (Q1-Q6): focused, specific, well-justified ✅
+
+        - Candidate Requirements: three candidates, properly split from the source''s
+        compound obligations ✅
+
+        - Each candidate has Status, Template, Requirement sentence, Source intent,
+        full Implementability contract, and full Verification contract ✅
+
+        - Suggested Supporting Requirements (SR-1 through SR-7): each with relationship
+        label, source behavior, and rationale ✅
+
+        - Consistency Findings: four findings with gap, precedence, overlap analysis
+        ✅
+
+        - Assumptions: seven explicitly labeled, each tied to a clarifying question
+        ✅
+
+        - Rationale and Context: present ✅
+
+        - Review Status: summary table with blocking items ✅
+
+
+        **Uncertainty preservation:**
+
+        - Candidate 2 (`needs clarification`, Template: Unresolved) correctly blocks
+        on Q2 ✅
+
+        - Candidate 3 (`needs clarification`) correctly blocks on Q5, Q6 ✅
+
+        - Candidate 1 (`ready for review`) is defensible — the core obligation (one
+        field, three values) is verifiable; Q3 is noted as a refinement ✅
+
+        - No uncertainty is suppressed or hidden in confident sentences ✅
+
+
+        **Template selection:**
+
+        - Expected template is `complex`, and Candidate 3 correctly uses the Complex
+        template ✅
+
+        - Candidate 1 uses Event-driven, which is appropriate for the response structure
+        obligation ✅
+
+
+        **Minor observations:**
+
+        - The output could arguably mark Candidate 1 as `needs clarification` rather
+        than `ready for review` given Q3 (strict vs. minimum field count), but the
+        output explicitly acknowledges Q3 as a refinement rather than a gate-blocker,
+        and provides reasoning for why it doesn''t block the normative content. This
+        is a reasonable judgment call.
+
+        - The package follows the exact portable response headings from the reference.
+
+        - The artifact was successfully written to `artifacts/result.md`.
+
+
+        This is an exemplary output that meets all required findings, avoids all disallowed
+        behaviors, maintains proper separation of concerns, preserves uncertainty,
+        and follows the prescribed format precisely.'
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: '**Required findings check:**
+
+
+        1. **Preserve BILL-REQ-42, both tags, and the trace link:** The package header
+        explicitly lists `ID: BILL-REQ-42`, `Tags: [billing, external-api]`, and `Trace:
+        interface://billing/v2/charge`. All three are preserved exactly. ✅
+
+
+        2. **Identify the API boundary and 500 ms measurement boundary:** The Understanding
+        section clearly identifies the Billing API service boundary at `interface://billing/v2/charge`
+        and precisely describes the 500 ms timing scope: "clock starts when the complete
+        request body has been received and parsed, and ends when the final response
+        byte is emitted at the service boundary." Candidate 3 elaborates on this extensively,
+        including the observability challenge of the "parsed" event being internal.
+        ✅
+
+
+        3. **Ask about amount precision and the scope of terminal indeterminate behavior:**
+        Q4 directly asks about amount precision ("minimum positive value, maximum
+        number of decimal places, representation constraint"). Q2 directly asks about
+        the observable meaning of "terminal" with three concrete options. Both are
+        well-focused questions that identify exactly why two implementers could diverge.
+        ✅
+
+
+        4. **Avoid ProtoBot-specific terms, storage, or approval states:** The package
+        explicitly states "No candidates are approved. This package is the output
+        of elicitation; approval is a host responsibility." No ProtoBot terminology,
+        storage references, or approval states appear. ✅
+
+
+        **Disallowed behaviors check:**
+
+        - Does not replace or invent the supplied identifier (BILL-REQ-42 preserved).
+        ✅
+
+        - Does not claim the host approved the requirement. ✅
+
+        - Does not introduce a Drafting Table or change-set workflow. ✅
+
+
+        **Expected templates check:**
+
+        - The expected template is "complex." Candidate 3 (the latency deadline) correctly
+        uses the Complex template with "While ≤100 concurrent valid requests are in
+        flight, when a valid charge request is received..." Candidate 1 uses Event-driven,
+        which is reasonable for the response structure obligation (it''s a single-trigger
+        requirement). Candidate 2 is correctly marked Unresolved. The complex template
+        is correctly identified and applied where it belongs. ✅
+
+
+        **Readiness assessment:**
+
+        - Expected readiness is "mixed." The output has Candidate 1 as `ready for
+        review`, Candidate 2 as `needs clarification`, and Candidate 3 as `needs clarification`.
+        This accurately reflects the mixed readiness. ✅
+
+
+        **Quality of analysis:**
+
+        - The source is well-decomposed into three independent obligations with proper
+        splitting.
+
+        - The information sorting table is thorough and accurate.
+
+        - Six focused clarifying questions are well-targeted and justified.
+
+        - Seven supporting requirements are grounded in the source with appropriate
+        relationship labels.
+
+        - Four consistency findings are relevant and well-structured.
+
+        - Seven assumptions are clearly labeled and linked to questions.
+
+        - Both implementability and verification contracts are complete for each candidate.
+
+        - The package uses all required headings from the portable response format.
+
+
+        **Minor observations:**
+
+        - Q5 and Q6 (concurrency model and percentile) are reasonable questions but
+        could be seen as slightly over-questioning given the source says "for every
+        valid request" (which strongly implies 100th percentile) and "up to 100 concurrent
+        valid requests" (which strongly implies in-flight concurrency). However, asking
+        for confirmation on operationally significant interpretations is defensible
+        elicitation practice.
+
+        - Candidate 1 is marked `ready for review` despite Q3 (extra keys question)
+        being open. The output argues Q3 is a refinement, not a gate-blocker. This
+        is a judgment call — the source says "only one field" which is quite clear,
+        so treating it as a refinement rather than a blocker is reasonable.
+
+
+        Overall, this is an exceptionally thorough and well-structured elicitation
+        package that hits all required findings, avoids all disallowed behaviors,
+        uses the expected template, correctly identifies the mixed readiness state,
+        and provides high-quality analysis throughout.'
+      value: 5
+  case-023-ready-complete:
+    category_critical_gate:
+      judge_type: check
+      rationale: Critical category behavior is present
+      value: true
+    ears_structure:
+      judge_type: check
+      rationale: Expected EARS syntax is present
+      value: true
+    ears_template_coverage:
+      judge_type: check
+      rationale: Expected EARS template labels are present
+      value: true
+    execution_succeeded:
+      judge_type: check
+      rationale: Skill exited successfully
+      value: true
+    package_structure:
+      judge_type: check
+      rationale: Portable package sections are present
+      value: true
+    readiness_gate:
+      judge_type: check
+      rationale: Both readiness contracts are visible
+      value: true
+    review_discipline:
+      judge_type: llm
+      rationale: "The output is exceptionally well-structured and faithfully preserves\
+        \ all source-specified details.\n\n**Structural separation:** The package\
+        \ uses all required headings: Understanding, Clarifying Questions, Candidate\
+        \ Requirements (with full implementability and verification contracts), Suggested\
+        \ Supporting Requirements, Consistency Findings, Assumptions, Rationale and\
+        \ Context, and Review Status. Each section serves its designated purpose without\
+        \ bleeding into others.\n\n**Preservation of source details:** \n- Endpoint\
+        \ boundary (Health API process boundary): preserved in every candidate.\n\
+        - Actor (any client, unauthenticated): preserved.\n- Exact response (`{\"\
+        status\":\"ok\"}`): preserved as a byte-level obligation in Candidate 3.\n\
+        - Timing boundaries (100 ms, P100, measured from complete-header receipt to\
+        \ final-byte emission): preserved precisely in Candidate 4.\n- Concurrency\
+        \ scope (≤ 50 in-flight): preserved as the While precondition in all candidates.\n\
+        - Out-of-scope behaviors explicitly noted.\n\n**Template selection:** All\
+        \ four candidates use the Complex template (While … When … shall …), which\
+        \ is correct — there is both a state precondition (≤ 50 concurrent) and a\
+        \ discrete trigger (GET /health request received). This matches the expected_templates:\
+        \ ['complex'].\n\n**Readiness gating:** All candidates marked \"ready for\
+        \ review\" with both contracts fully populated. The contracts contain no \"\
+        open,\" \"unresolved,\" \"pending,\" or \"incomplete\" markers, which is appropriate\
+        \ given the source's precision. The readiness assessment matches the case's\
+        \ readiness: ready_for_review.\n\n**Uncertainty handling:** The Clarifying\
+        \ Questions section explicitly states \"No material question remains unresolved\"\
+        \ but still surfaces five confirmatory observations (Content-Type parameters,\
+        \ byte encoding, P100, concurrency scope, HTTP version). These are presented\
+        \ as non-blocking notes rather than pretending they were answered by the source.\
+        \ This is honest — the source really is that precise.\n\n**Disallowed behaviors\
+        \ check:**\n- No authentication, persistence, or implementation details invented:\
+        \ ✓\n- Does not mark the candidate as \"needs clarification\" without material\
+        \ reason: ✓ (correctly marks as \"ready for review\" since the source is complete)\n\
+        \n**Assumptions separated:** Five assumptions clearly labeled and separated\
+        \ from normative sentences.\n\n**Supporting requirements separated:** S1–S4\
+        \ are kept outside the candidate list with proper relationship labels (failure-path\
+        \ companion, boundary companion, interface companion, operational companion).\n\
+        \n**Consistency findings:** Four findings including an insightful gap analysis\
+        \ at the exactly-50 boundary.\n\n**Minor observations:** The splitting into\
+        \ 4 candidates (status, Content-Type, body, latency) is reasonable and well-justified,\
+        \ though one could argue status+Content-Type+body could be fewer candidates.\
+        \ The contracts are thorough and complete. The artifact was written to the\
+        \ requested path.\n\n**One very minor issue:** Some of the \"clarifying questions\"\
+        \ (e.g., #1 about Content-Type parameters, #2 about byte sequence) could be\
+        \ seen as questioning things the source already clearly answers (\"with no\
+        \ parameters\" and \"exactly the byte sequence\"). However, the output explicitly\
+        \ frames these as \"confirmatory notes, not blocking ambiguities,\" which\
+        \ is appropriate epistemic honesty rather than pretending questions were answered.\n\
+        \nOverall this is an excellent output with proper separation, preserved uncertainty,\
+        \ no invented details, and complete contracts."
+      value: 5
+    semantic_quality:
+      judge_type: llm
+      rationale: '**Required findings check:**
+
+
+        1. "Preserve the endpoint boundary, actor, exact response, timing boundaries,
+        and concurrency scope" — All four candidates correctly preserve: the GET /health
+        endpoint, the Health API process boundary, the actor (any client, unauthenticated),
+        the exact response (HTTP 200, Content-Type application/json with no parameters,
+        exact byte sequence {"status":"ok"}), the timing boundaries (100 ms P100,
+        measured from complete-header receipt to final-byte emission at the process
+        boundary), and the concurrency scope (≤ 50 in-flight). ✅
+
+
+        2. "Mark the candidate ready only when both contracts are complete" — All
+        four candidates are marked "ready for review" and both implementability and
+        verification contracts are fully populated with no open/unresolved/pending
+        items. The contracts are genuinely complete — system boundary, actor, interfaces,
+        inputs, preconditions, triggers, observable responses, quantities, domain
+        terms are all specified in implementability; setup, oracle, expected result,
+        pass/fail criteria, boundary cases, instrumentation, and observability are
+        all specified in verification. ✅
+
+
+        **Expected templates:** "complex" — All four candidates use the Complex template
+        (While … When … shall …), which is correct since both the concurrency precondition
+        (state) and the request event (trigger) are genuinely needed. ✅
+
+
+        **Disallowed behaviors:**
+
+        - "invent authentication, persistence, or implementation details" — No authentication,
+        persistence, or implementation details are invented. The suggestions (S2 about
+        atomic counters) are explicitly labeled as suggestions and not candidates.
+        ✅
+
+        - "mark the complete candidate needs clarification without a material reason"
+        — All candidates are marked ready for review, not needs clarification. ✅
+
+
+        **Quality of the package:**
+
+        - The package follows the exact portable response format with all required
+        sections.
+
+        - The decomposition into 4 independently testable candidates (status, Content-Type,
+        body, latency) is well-justified and follows the "split independent responses"
+        rule.
+
+        - Each EARS sentence contains exactly one "shall."
+
+        - Clarifying questions are presented as non-blocking confirmatory notes, which
+        is appropriate given the source''s precision.
+
+        - Supporting requirements (S1-S4) are grounded in the source and use correct
+        relationship labels.
+
+        - Consistency findings are relevant: the intentional exception for >50 concurrent
+        requests, the exactly-50 boundary gap, no internal conflicts, and the coherence
+        note for Candidates 2 and 3.
+
+        - Assumptions are clearly labeled and reasonable.
+
+        - No implementation leakage in normative sentences.
+
+        - The rationale and context section provides useful domain context without
+        being prescriptive.
+
+
+        **Minor observations:**
+
+        - The "clarifying questions" section lists items that are presented as non-blocking,
+        which is appropriate. However, items 1 and 2 could be seen as slightly unnecessary
+        since the source is quite explicit about "with no parameters" and "exactly
+        the byte sequence." These are flagged as confirmatory rather than blocking,
+        so this is acceptable.
+
+        - The package is somewhat verbose/repetitive across the four candidates, but
+        this is a structural consequence of the format and the shared preconditions.
+
+
+        This is an excellent output that faithfully preserves all source intent, uses
+        the correct EARS template, provides complete contracts, identifies relevant
+        consistency issues, avoids inventing behavior, and correctly marks all candidates
+        as ready for review.'
+      value: 5
+run_id: v2

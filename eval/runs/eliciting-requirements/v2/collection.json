@@ -1,0 +1,54 @@
+{
+  "case-001-ubiquitous": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-002-event-driven": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-003-state-driven": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-004-optional-feature": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-005-unwanted-behavior": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-006-complex-splitting": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-007-rough-api": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-008-vague-ui": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-009-broad-security": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-010-supporting-requirements": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-011-conflicting-set": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-012-host-independent": {
+    "artifacts": 1,
+    "_modified": 1
+  },
+  "case-023-ready-complete": {
+    "artifacts": 1,
+    "_modified": 1
+  }
+}
