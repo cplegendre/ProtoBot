@@ -303,6 +303,33 @@ func TestOpenShortDeadlineDoesNotRecordWallClockLimit(t *testing.T) {
 	}
 }
 
+func TestWallClockZeroLimitExceeded(t *testing.T) {
+	env := NewConformanceEnv(t)
+	req := env.OpenRequest(RoleWorkerA)
+	req.Limits.WallClock = 0
+	session, err := NewLocalAdapter().Open(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = session.Close() }()
+
+	_, err = session.Git(context.Background(), "status")
+	if errorCode(err) != CodeSandboxLimit {
+		t.Fatalf("expected %s on WallClock == 0, got %v", CodeSandboxLimit, err)
+	}
+
+	foundWallLimit := false
+	for _, ev := range session.Audit() {
+		if ev.EventType == EventSandboxLimit && ev.LimitName == "wall-clock" {
+			foundWallLimit = true
+			break
+		}
+	}
+	if !foundWallLimit {
+		t.Fatalf("expected EventSandboxLimit with LimitName wall-clock in audit log")
+	}
+}
+
 func TestProcessArgsExcludeSentinel(t *testing.T) {
 	env := NewConformanceEnv(t)
 	session, err := NewLocalAdapter().Open(context.Background(), env.OpenRequest(RoleWorkerA))

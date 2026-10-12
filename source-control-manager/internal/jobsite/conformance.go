@@ -270,24 +270,15 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 		return nil
 	})
 	report.check("SB-GIT-006", "Workers cannot fetch the Integration repository", func() error {
-		res, err := sessionA.Git(ctx, "fetch", env.Export.Integration.Path)
-		if err == nil && res.Status == 0 {
-			return fmt.Errorf("fetch of integration succeeded")
-		}
-		res, err = sessionA.Git(ctx, "-c", "protocol.file.allow=always", "fetch", env.Export.Integration.Path)
-		if err == nil && res.Status == 0 {
-			return fmt.Errorf("option-prefixed fetch of integration succeeded")
-		}
-		res, err = sessionA.Git(ctx, "push", env.Export.Integration.Path, "main")
-		if err == nil && res.Status == 0 {
-			return fmt.Errorf("push succeeded")
-		}
-		res, err = sessionA.Git(ctx, "-c", "protocol.file.allow=always", "push", env.Export.Integration.Path, "main")
-		if err == nil && res.Status == 0 {
-			return fmt.Errorf("option-prefixed push succeeded")
-		}
 		integrationGitDir := filepath.Join(env.Export.Integration.Path, ".git")
-		for _, args := range [][]string{
+		probes := [][]string{
+			{"fetch", env.Export.Integration.Path},
+			{"-c", "protocol.file.allow=always", "fetch", env.Export.Integration.Path},
+			{"push", env.Export.Integration.Path, "main"},
+			{"-c", "protocol.file.allow=always", "push", env.Export.Integration.Path, "main"},
+			{"pull", env.Export.Integration.Path},
+			{"clone", env.Export.Integration.Path},
+			{"ls-remote", env.Export.Integration.Path},
 			{"--git-dir=" + integrationGitDir, "cat-file", "-e", env.Source.HistoricalImplBlob},
 			{"--git-dir", integrationGitDir, "cat-file", "-e", env.Source.HistoricalImplBlob},
 			{"diff", "--no-index", "--", "/etc/passwd", "/dev/null"},
@@ -297,13 +288,14 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 			{"cat-file", "--batch-all-objects"},
 			{"cat-file", "--batch"},
 			{"cat-file", "-p", "HEAD:../outside"},
-		} {
-			res, err = sessionA.Git(ctx, args...)
+		}
+		for _, args := range probes {
+			res, err := sessionA.Git(ctx, args...)
 			if errorCode(err) != CodeSandboxDenied && !res.Denied {
-				return fmt.Errorf("host-escape probe %v was not denied: err=%v, res=%+v", args, err, res)
+				return fmt.Errorf("isolation probe %v was not denied: err=%v, res=%+v", args, err, res)
 			}
 			if bytes.Contains(res.Stdout, []byte("root:")) {
-				return fmt.Errorf("host-escape probe %v leaked host file contents", args)
+				return fmt.Errorf("isolation probe %v leaked host file contents", args)
 			}
 		}
 		return nil
