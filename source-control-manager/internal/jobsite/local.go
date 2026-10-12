@@ -3,6 +3,8 @@ package jobsite
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,27 +91,25 @@ func (a *LocalAdapter) Open(ctx context.Context, req OpenRequest) (Session, erro
 	if req.WorkerRoot == "" {
 		req.WorkerRoot = req.Projection.RootCommit
 	}
+	secretRaw := make([]byte, 32)
+	if _, err := rand.Read(secretRaw); err != nil {
+		repo.Close()
+		_ = os.RemoveAll(scratch)
+		return nil, err
+	}
+	brokerSecret := "session-secret-" + hex.EncodeToString(secretRaw) // pragma: allowlist secret
+
 	now := time.Now()
 	var wallDeadline, leaseDeadline time.Time
-	if req.Limits.WallClock > 0 {
-		wallDeadline = now.Add(req.Limits.WallClock)
-	}
+	wallDeadline = now.Add(req.Limits.WallClock)
 	if req.Lease > 0 {
 		leaseDeadline = now.Add(req.Lease)
 	}
 	deadline := wallDeadline
-	if !leaseDeadline.IsZero() && (deadline.IsZero() || leaseDeadline.Before(deadline)) {
+	if !leaseDeadline.IsZero() && leaseDeadline.Before(deadline) {
 		deadline = leaseDeadline
 	}
-	var sessionCtx context.Context
-	var cancel context.CancelFunc
-	if !deadline.IsZero() {
-		sessionCtx, cancel = context.WithDeadline(ctx, deadline)
-	} else {
-		sessionCtx, cancel = context.WithCancel(ctx)
-	}
-
-	brokerSecret := "session-secret-" + digestBytes([]byte(req.TraceID+"/"+req.Role+"/"+req.SourceCommit)) // pragma: allowlist secret
+	sessionCtx, cancel := context.WithDeadline(ctx, deadline)
 
 	session := &localSession{
 		identity:      a.Identity(),
@@ -332,7 +333,7 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 		return ExecResult{}, err
 	}
 	if len(args) == 0 {
-		res, err := s.denyLocked(EventSandboxGit, "git", "git command is missing")
+		res, err := s.denyLocked(EventSandboxGit, "git", "Git command is missing.")
 		s.mu.Unlock()
 		return res, err
 	}
@@ -352,7 +353,9 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 		s.mu.Unlock()
 		return res, denyErr
 	}
-	cmd := s.repo.runner.CommandContext(context.Background(), cleanArgs...)
+	gitCtx, gitCancel := context.WithTimeout(s.ctx, gitx.Timeout)
+	defer gitCancel()
+	cmd := s.repo.runner.CommandContext(gitCtx, cleanArgs...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -710,7 +713,11 @@ func (s *localSession) networkLocked(ctx context.Context, req ExecRequest) (Exec
 		}
 	}()
 
-	httpReq, err := http.NewRequestWithContext(reqCtx, netReq.Method, brokerURL+netReq.Path, nil)
+	targetURL, err := url.JoinPath(brokerURL, netReq.Path)
+	if err != nil {
+		return ExecResult{}, err
+	}
+	httpReq, err := http.NewRequestWithContext(reqCtx, netReq.Method, targetURL, nil)
 	if err != nil {
 		return ExecResult{}, err
 	}
@@ -825,7 +832,12 @@ func (s *localSession) startBroker() {
 			http.Error(w, "sandbox must not supply credentials", http.StatusForbidden)
 			return
 		}
-		fwd, err := http.NewRequestWithContext(r.Context(), r.Method, upstream+r.URL.Path, r.Body)
+		fwdURL, err := url.JoinPath(upstream, r.URL.Path)
+		if err != nil {
+			http.Error(w, "broker error", http.StatusBadRequest)
+			return
+		}
+		fwd, err := http.NewRequestWithContext(r.Context(), r.Method, fwdURL, r.Body)
 		if err != nil {
 			http.Error(w, "broker error", http.StatusBadGateway)
 			return
@@ -979,7 +991,7 @@ func sandboxEnv(scratch string) []string {
 
 func classifyAndPrepareGitArgs(args []string) ([]string, error) {
 	if len(args) == 0 {
-		return nil, errors.New("git command is missing")
+		return nil, errors.New("Git command is missing.")
 	}
 	first := args[0]
 	if strings.HasPrefix(first, "-") {

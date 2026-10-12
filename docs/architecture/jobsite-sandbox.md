@@ -379,7 +379,7 @@ identifier, name, pass/fail, and detail. A failed check sets
 | `SB-GIT-003` | `git remote` in a Worker session. | Empty. |
 | `SB-GIT-004` | Alternates file under the Worker git dir. | Absent. |
 | `SB-GIT-005` | Reflogs under the Worker git dir. | Absent. |
-| `SB-GIT-006` | `git fetch` of Integration. | Denied or non-zero. |
+| `SB-GIT-006` | `git fetch` of Integration. | Denied. |
 | `SB-GIT-007` | `git cat-file -e` of a historical implementation blob. | Non-zero or denied. |
 | `SB-NET-001` | `approved-fetch` to the allowlisted destination, method, and path. | HTTP 200; body has no credential. |
 | `SB-NET-002` | Same destination from `curl`. | Denied. |
