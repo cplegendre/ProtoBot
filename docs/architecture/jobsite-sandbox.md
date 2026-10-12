@@ -152,8 +152,8 @@ the same suite.
 workspace. The session must not reuse the control-plane export
 directory as its writable root. `Close` removes that workspace.
 
-Stable failure codes are `sandbox.denied`, `sandbox.capability`,
-`sandbox.limit`, `sandbox.cancelled`, and `sandbox.fail_closed`.
+Stable failure codes are `sandbox.denied`, `sandbox.limit`,
+`sandbox.cancelled`, and `sandbox.fail_closed`.
 
 `RunSandboxConformance` is the reusable suite. It returns a
 `ConformanceReport` covering backend identity and version, policy
@@ -359,7 +359,14 @@ suite against this adapter.
 The suite is `RunSandboxConformance`. Downstream adapters call it
 with their `Adapter` and a `ConformanceEnv`. Each check records an
 identifier, name, pass/fail, and detail. A failed check sets
-`autonomous_execution` to false.
+`autonomous_execution` to false. The conformance suite exercises
+adapter and session API behavior (`ReadPath`, `WritePath`, `Git`,
+`Execute`). It does not run arbitrary binaries that probe host or
+peer filesystems from inside the Worker execution boundary. This suite
+alone is insufficient to enable autonomous execution in production
+environments until an integration-level check exercises host/peer access
+from inside the Worker execution boundary (such as in the concrete
+Fullsend/OpenShell adapter under #172).
 
 | ID | Setup and command | Expected result |
 | --- | --- | --- |

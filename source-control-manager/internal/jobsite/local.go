@@ -51,7 +51,7 @@ func (a *LocalAdapter) Capabilities() []Capability {
 // per-session credential broker. Missing capabilities fail closed.
 func (a *LocalAdapter) Open(ctx context.Context, req OpenRequest) (Session, error) {
 	if missing := missingRequiredCapabilities(a.Capabilities()); len(missing) > 0 {
-		return nil, fail(CodeSandboxFailClosed, "missing capabilities "+strings.Join(missing, ", ")+"; autonomous execution disabled")
+		return nil, fail(CodeSandboxFailClosed, fmt.Sprintf("Missing capabilities %s; autonomous execution disabled.", strings.Join(missing, ", ")))
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -64,7 +64,7 @@ func (a *LocalAdapter) Open(ctx context.Context, req OpenRequest) (Session, erro
 	}
 	if req.Limits.WallClock < 0 || req.Limits.CPU < 0 || req.Limits.ProcessCount < 0 ||
 		req.Limits.WritableFiles < 0 || req.Limits.WritableBytes < 0 || req.Limits.MemoryBytes < 0 {
-		return nil, fail(CodeSandboxFailClosed, "Sandbox resource limits are invalid; autonomous execution disabled")
+		return nil, fail(CodeSandboxFailClosed, "Sandbox resource limits are invalid; autonomous execution disabled.")
 	}
 
 	scratch, err := os.MkdirTemp("", "jobsite-sandbox-")
@@ -255,12 +255,27 @@ func (s *localSession) ReadPath(ctx context.Context, projectPath string) ([]byte
 		_, denyErr := s.denyLocked(EventSandboxRead, canonical, "Sandbox path is not visible to the Worker role.")
 		return nil, denyErr
 	}
-	data, err := os.ReadFile(filepath.Join(s.root, filepath.FromSlash(canonical)))
+	if isSymlink, _ := s.hasSymlinkComponent(canonical); isSymlink {
+		_, denyErr := s.denyLocked(EventSandboxRead, canonical, "Sandbox path must not follow symlinks.")
+		return nil, denyErr
+	}
+	full := filepath.Join(s.root, filepath.FromSlash(canonical))
+	info, err := os.Lstat(full)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fail(CodeSandboxDenied, "Sandbox path does not exist in the projection.")
 		}
 		return nil, err
+	}
+	if info.Size() > s.limitMemory {
+		return nil, s.limitLocked("memory", fmt.Sprintf("%d", s.limitMemory), "Memory limit exceeded.")
+	}
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > s.limitMemory {
+		return nil, s.limitLocked("memory", fmt.Sprintf("%d", s.limitMemory), "Memory limit exceeded.")
 	}
 	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxRead, Decision: DecisionAccept, Action: "read", Target: canonical})
 	return data, nil
@@ -292,18 +307,22 @@ func (s *localSession) WritePath(ctx context.Context, projectPath string, conten
 		_, denyErr := s.denyLocked(EventSandboxWrite, canonical, "Sandbox file mode must be 100644 or 100755.")
 		return denyErr
 	}
+	if isSymlink, _ := s.hasSymlinkComponent(canonical); isSymlink {
+		_, denyErr := s.denyLocked(EventSandboxWrite, canonical, "Sandbox path must not follow symlinks.")
+		return denyErr
+	}
 	size := int64(len(content))
 	if size > s.limitMemory {
-		return s.limitLocked("memory", fmt.Sprintf("%d", s.limitMemory), "memory limit exceeded")
+		return s.limitLocked("memory", fmt.Sprintf("%d", s.limitMemory), "Memory limit exceeded.")
 	}
 	if s.writtenBytes+size > s.limitBytes {
-		return s.limitLocked("writable-disk", fmt.Sprintf("%d", s.limitBytes), "writable disk limit exceeded")
+		return s.limitLocked("writable-disk", fmt.Sprintf("%d", s.limitBytes), "Writable disk limit exceeded.")
 	}
 	full := filepath.Join(s.root, filepath.FromSlash(canonical))
 	_, existsErr := os.Lstat(full)
 	exists := existsErr == nil
 	if !exists && s.writtenFiles+1 > s.limitFiles {
-		return s.limitLocked("writable-files", fmt.Sprintf("%d", s.limitFiles), "writable file limit exceeded")
+		return s.limitLocked("writable-files", fmt.Sprintf("%d", s.limitFiles), "Writable file limit exceeded.")
 	}
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return err
@@ -316,7 +335,9 @@ func (s *localSession) WritePath(ctx context.Context, projectPath string, conten
 		return err
 	}
 	action := ActionUpdate
-	if !exists {
+	if prev, ok := s.writes[canonical]; ok && prev.action == ActionCreate {
+		action = ActionCreate
+	} else if !exists {
 		action = ActionCreate
 		s.writtenFiles++
 	}
@@ -343,7 +364,7 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 		return res, denyErr
 	}
 	if len(s.cmds)+1 > s.limitProcs {
-		err := s.limitLocked("process-count", fmt.Sprintf("%d", s.limitProcs), "process-count limit exceeded")
+		err := s.limitLocked("process-count", fmt.Sprintf("%d", s.limitProcs), "Process-count limit exceeded.")
 		s.mu.Unlock()
 		return ExecResult{Denied: true, Status: -1}, err
 	}
@@ -355,7 +376,7 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 	}
 	gitCtx, gitCancel := context.WithTimeout(s.ctx, gitx.Timeout)
 	defer gitCancel()
-	cmd := s.repo.runner.CommandContext(gitCtx, cleanArgs...)
+	cmd := s.repo.runner.RawCommandContext(gitCtx, cleanArgs...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -397,7 +418,7 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 
 	if sessionCtx.Err() != nil {
 		if limitName, limitConfig, ok := s.expiredLimit(); ok {
-			return ExecResult{Denied: true, Status: -1}, s.limitLocked(limitName, limitConfig, limitName+" limit exceeded")
+			return ExecResult{Denied: true, Status: -1}, s.limitLocked(limitName, limitConfig, limitMessage(limitName))
 		}
 		s.cancelled = true
 		return ExecResult{Denied: true, Status: -1}, fail(CodeSandboxCancelled, "Sandbox session is cancelled.")
@@ -417,6 +438,9 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 		} else {
 			return ExecResult{}, fmt.Errorf("git wait: %w", waitErr)
 		}
+	}
+	if int64(stdout.Len()+stderr.Len()) > s.limitMemory {
+		return ExecResult{Denied: true, Status: -1}, s.limitLocked("memory", fmt.Sprintf("%d", s.limitMemory), "Memory limit exceeded.")
 	}
 	out := ExecResult{Status: status, Stdout: stdout.Bytes(), Stderr: stderr.Bytes()}
 	if containsSentinelBytes(out.Stdout, out.Stderr) {
@@ -457,7 +481,7 @@ func (s *localSession) Cancel(ctx context.Context) error {
 		s.cancel()
 	}
 	s.killAllLocked()
-	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxCancel, Decision: DecisionAccept, Action: "cancel"})
+	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxCancel, Decision: DecisionAccept, Action: "cancel", Target: "session"})
 	return ctx.Err()
 }
 
@@ -492,7 +516,7 @@ func (s *localSession) Close() error {
 		result = DecisionReject
 		detail = err.Error()
 	}
-	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxCleanup, Decision: result, Action: "cleanup", CleanupResult: detail})
+	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxCleanup, Decision: result, Action: "cleanup", Target: "workspace", CleanupResult: detail})
 	return err
 }
 
@@ -525,8 +549,7 @@ func (s *localSession) guardLocked(ctx context.Context) error {
 	if err := s.ctx.Err(); err != nil {
 		s.cancelled = true
 		if limitName, limitConfig, ok := s.expiredLimit(); ok {
-			_ = s.limitLocked(limitName, limitConfig, limitName+" limit exceeded")
-			return fail(CodeSandboxLimit, limitName+" limit exceeded")
+			return s.limitLocked(limitName, limitConfig, limitMessage(limitName))
 		}
 		return fail(CodeSandboxCancelled, "Sandbox session is cancelled.")
 	}
@@ -534,14 +557,14 @@ func (s *localSession) guardLocked(ctx context.Context) error {
 		return fail(CodeSandboxCancelled, "Call context cancelled.")
 	}
 	if s.cpuUsed >= s.limitCPU {
-		return s.limitLocked("cpu", s.limitCPU.String(), "cpu limit exceeded")
+		return s.limitLocked("cpu", s.limitCPU.String(), "CPU limit exceeded.")
 	}
 	return nil
 }
 
 func (s *localSession) sleepLocked(ctx context.Context, req ExecRequest) (ExecResult, error) {
 	if len(s.cmds)+1 > s.limitProcs {
-		return ExecResult{}, s.limitLocked("process-count", fmt.Sprintf("%d", s.limitProcs), "process-count limit exceeded")
+		return ExecResult{}, s.limitLocked("process-count", fmt.Sprintf("%d", s.limitProcs), "Process-count limit exceeded.")
 	}
 	args := req.Args
 	if len(args) == 0 {
@@ -581,7 +604,7 @@ func (s *localSession) sleepLocked(ctx context.Context, req ExecRequest) (ExecRe
 
 	if sessionCtx.Err() != nil {
 		if limitName, limitConfig, ok := s.expiredLimit(); ok {
-			return ExecResult{Denied: true, Status: -1}, s.limitLocked(limitName, limitConfig, limitName+" limit exceeded")
+			return ExecResult{Denied: true, Status: -1}, s.limitLocked(limitName, limitConfig, limitMessage(limitName))
 		}
 		s.cancelled = true
 		return ExecResult{Denied: true, Status: -1}, fail(CodeSandboxCancelled, "Sandbox session is cancelled.")
@@ -603,10 +626,10 @@ func (s *localSession) sleepLocked(ctx context.Context, req ExecRequest) (ExecRe
 		}
 	}
 	if status != 0 {
-		s.appendAudit(SandboxAuditEvent{EventType: EventSandboxExec, Decision: DecisionReject, Action: "sleep", Executable: req.Executable})
+		s.appendAudit(SandboxAuditEvent{EventType: EventSandboxExec, Decision: DecisionReject, Action: "sleep", Target: "sleep", Executable: req.Executable})
 		return ExecResult{Status: status}, fmt.Errorf("sleep exited with status %d", status)
 	}
-	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxExec, Decision: DecisionAccept, Action: "sleep", Executable: req.Executable})
+	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxExec, Decision: DecisionAccept, Action: "sleep", Target: "sleep", Executable: req.Executable})
 	return ExecResult{Status: status}, nil
 }
 
@@ -646,7 +669,7 @@ burnLoop:
 	s.cpuUsed += elapsed
 	if sessionCtx.Err() != nil {
 		if limitName, limitConfig, ok := s.expiredLimit(); ok {
-			return ExecResult{Denied: true, Status: -1}, s.limitLocked(limitName, limitConfig, limitName+" limit exceeded")
+			return ExecResult{Denied: true, Status: -1}, s.limitLocked(limitName, limitConfig, limitMessage(limitName))
 		}
 		s.cancelled = true
 		return ExecResult{Denied: true, Status: -1}, fail(CodeSandboxCancelled, "Sandbox session is cancelled.")
@@ -662,6 +685,7 @@ burnLoop:
 		EventType:  EventSandboxExec,
 		Decision:   DecisionAccept,
 		Action:     "burn",
+		Target:     "burn",
 		Executable: req.Executable,
 	})
 	return ExecResult{Status: 0, Stdout: []byte("burned")}, nil
@@ -670,31 +694,32 @@ burnLoop:
 func (s *localSession) networkLocked(ctx context.Context, req ExecRequest) (ExecResult, error) {
 	netReq := req.Network
 	if req.Executable != ApprovedFetchName || req.Digest != ApprovedFetchDigest {
-		return s.denyLocked(EventSandboxNetwork, req.Executable, "Network executable is not approved.")
+		return s.denyLocked(EventSandboxNetwork, "network:unapproved-executable", "Network executable is not approved.")
 	}
 	if netReq.Protocol != AllowedProtocol || netReq.Method != AllowedMethod {
-		return s.denyLocked(EventSandboxNetwork, netReq.Destination, "Network protocol or method is not approved.")
+		return s.denyLocked(EventSandboxNetwork, "network:unapproved-protocol", "Network protocol or method is not approved.")
 	}
 	if looksLikeIP(netReq.Destination) {
-		return s.denyLocked(EventSandboxNetwork, netReq.Destination, "Direct IP destinations are denied.")
+		return s.denyLocked(EventSandboxNetwork, "network:ip-literal", "Direct IP destinations are denied.")
 	}
 	if strings.Contains(strings.ToLower(netReq.Protocol), "dns") || strings.HasPrefix(netReq.Destination, "dns-") {
-		return s.denyLocked(EventSandboxNetwork, netReq.Destination, "DNS tunneling is denied.")
+		return s.denyLocked(EventSandboxNetwork, "network:dns-tunneling", "DNS tunneling is denied.")
 	}
 	if netReq.Protocol == "tcp" || netReq.Protocol == "udp" || netReq.Protocol == "raw" {
-		return s.denyLocked(EventSandboxNetwork, netReq.Destination, "Raw sockets are denied.")
+		return s.denyLocked(EventSandboxNetwork, "network:raw-socket", "Raw sockets are denied.")
 	}
 	if strings.Contains(netReq.Destination, ":") && !strings.HasSuffix(netReq.Destination, ":443") {
-		return s.denyLocked(EventSandboxNetwork, netReq.Destination, "Alternate ports are denied.")
+		return s.denyLocked(EventSandboxNetwork, "network:alternate-port", "Alternate ports are denied.")
 	}
 	if netReq.Protocol == "http" || strings.EqualFold(netReq.Path, "/tls-bypass") {
-		return s.denyLocked(EventSandboxNetwork, netReq.Destination, "TLS bypass is denied.")
+		return s.denyLocked(EventSandboxNetwork, "network:tls-bypass", "TLS bypass is denied.")
 	}
-	if !s.ruleMatch(req.Executable, req.Digest, netReq) {
-		return s.denyLocked(EventSandboxNetwork, netReq.Destination+netReq.Path, "Network destination is denied by default.")
+	matchedRule := s.findMatchingRule(req.Executable, req.Digest, netReq)
+	if matchedRule == nil {
+		return s.denyLocked(EventSandboxNetwork, "network:default-deny", "Network destination is denied by default.")
 	}
 	if s.broker == nil {
-		return ExecResult{}, fail(CodeSandboxFailClosed, "Credential broker is unavailable; autonomous execution disabled")
+		return ExecResult{}, fail(CodeSandboxFailClosed, "Credential broker is unavailable; autonomous execution disabled.")
 	}
 
 	sessionCtx := s.ctx
@@ -733,15 +758,23 @@ func (s *localSession) networkLocked(ctx context.Context, req ExecRequest) (Exec
 	resp, doErr := client.Do(httpReq)
 	var body []byte
 	var bodyErr error
+	var memoryLimitExceeded bool
 	if doErr == nil {
-		body, bodyErr = io.ReadAll(resp.Body)
+		if resp.Header.Get("X-Sandbox-Limit") == "memory" {
+			memoryLimitExceeded = true
+		}
+		lr := io.LimitReader(resp.Body, s.limitMemory+1)
+		body, bodyErr = io.ReadAll(lr)
+		if int64(len(body)) > s.limitMemory {
+			memoryLimitExceeded = true
+		}
 		_ = resp.Body.Close()
 	}
 	s.mu.Lock()
 
 	if sessionCtx.Err() != nil {
 		if limitName, limitConfig, ok := s.expiredLimit(); ok {
-			return ExecResult{Denied: true, Status: -1}, s.limitLocked(limitName, limitConfig, limitName+" limit exceeded")
+			return ExecResult{Denied: true, Status: -1}, s.limitLocked(limitName, limitConfig, limitMessage(limitName))
 		}
 		s.cancelled = true
 		return ExecResult{Denied: true, Status: -1}, fail(CodeSandboxCancelled, "Sandbox session is cancelled.")
@@ -754,16 +787,20 @@ func (s *localSession) networkLocked(ctx context.Context, req ExecRequest) (Exec
 		return ExecResult{Denied: true, Status: -1}, fail(CodeSandboxCancelled, "Call context cancelled.")
 	}
 
+	if memoryLimitExceeded {
+		return ExecResult{Denied: true, Status: -1}, s.limitLocked("memory", fmt.Sprintf("%d", s.limitMemory), "Memory limit exceeded.")
+	}
+
 	if doErr != nil {
 		if errors.Is(doErr, errRedirectDenied) || errors.Is(errors.Unwrap(doErr), errRedirectDenied) {
-			return s.denyLocked(EventSandboxNetwork, netReq.Path, "Network redirects are denied.")
+			return s.denyLocked(EventSandboxNetwork, "network:redirect", "Network redirects are denied.")
 		}
 		var urlErr interface{ Unwrap() error }
 		if errors.As(doErr, &urlErr) && errors.Is(urlErr.Unwrap(), errRedirectDenied) {
-			return s.denyLocked(EventSandboxNetwork, netReq.Path, "Network redirects are denied.")
+			return s.denyLocked(EventSandboxNetwork, "network:redirect", "Network redirects are denied.")
 		}
 		if strings.Contains(doErr.Error(), errRedirectDenied.Error()) {
-			return s.denyLocked(EventSandboxNetwork, netReq.Path, "Network redirects are denied.")
+			return s.denyLocked(EventSandboxNetwork, "network:redirect", "Network redirects are denied.")
 		}
 		return ExecResult{}, doErr
 	}
@@ -772,16 +809,17 @@ func (s *localSession) networkLocked(ctx context.Context, req ExecRequest) (Exec
 	}
 
 	if containsSentinel(resp.Header.Get(sandboxBrokerHeader), resp.Header.Get("X-Echo-Authorization")) || containsSentinelBytes(body) {
-		return s.denyLocked(EventSandboxNetwork, netReq.Path, "Credential sentinel leaked through the broker response.")
+		return s.denyLocked(EventSandboxNetwork, "network:sentinel-leak", "Credential sentinel leaked through the broker response.")
 	}
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
-		return s.denyLocked(EventSandboxNetwork, netReq.Path, "Network redirects are denied.")
+		return s.denyLocked(EventSandboxNetwork, "network:redirect", "Network redirects are denied.")
 	}
+	ruleID := matchedRule.Destination + matchedRule.Path
 	s.appendAudit(SandboxAuditEvent{
 		EventType:        EventSandboxNetwork,
 		Decision:         DecisionAccept,
 		Action:           netReq.Method,
-		Target:           netReq.Destination + netReq.Path,
+		Target:           ruleID,
 		Executable:       req.Executable,
 		ExecutableDigest: req.Digest,
 	})
@@ -790,19 +828,24 @@ func (s *localSession) networkLocked(ctx context.Context, req ExecRequest) (Exec
 
 var errRedirectDenied = errors.New("sandbox redirect denied")
 
-func (s *localSession) ruleMatch(executable, digest string, netReq *NetworkRequest) bool {
+func (s *localSession) findMatchingRule(executable, digest string, netReq *NetworkRequest) *NetworkRule {
 	dest := netReq.Destination
 	if host, _, ok := strings.Cut(dest, ":"); ok && strings.HasSuffix(dest, ":443") {
 		dest = host
 	}
-	for _, rule := range s.allow {
+	for i := range s.allow {
+		rule := &s.allow[i]
 		if rule.Executable == executable && rule.Digest == digest &&
 			rule.Destination == dest && rule.Protocol == netReq.Protocol &&
 			rule.Method == netReq.Method && rule.Path == netReq.Path {
-			return true
+			return rule
 		}
 	}
-	return false
+	return nil
+}
+
+func (s *localSession) ruleMatch(executable, digest string, netReq *NetworkRequest) bool {
+	return s.findMatchingRule(executable, digest, netReq) != nil
 }
 
 func (s *localSession) startBroker() {
@@ -855,9 +898,15 @@ func (s *localSession) startBroker() {
 			return
 		}
 		defer func() { _ = resp.Body.Close() }()
-		body, err := io.ReadAll(resp.Body)
+		lr := io.LimitReader(resp.Body, s.limitMemory+1)
+		body, err := io.ReadAll(lr)
 		if err != nil {
 			http.Error(w, "upstream body error", http.StatusBadGateway)
+			return
+		}
+		if int64(len(body)) > s.limitMemory {
+			w.Header().Set("X-Sandbox-Limit", "memory")
+			http.Error(w, "Broker response body exceeded memory limit.", http.StatusBadGateway)
 			return
 		}
 		for key, values := range resp.Header {
@@ -876,6 +925,30 @@ func (s *localSession) startBroker() {
 	}))
 }
 
+func limitMessage(name string) string {
+	switch name {
+	case "wall-clock":
+		return "Wall-clock limit exceeded."
+	case "lease":
+		return "Lease limit exceeded."
+	case "cpu":
+		return "CPU limit exceeded."
+	case "memory":
+		return "Memory limit exceeded."
+	case "process-count":
+		return "Process-count limit exceeded."
+	case "writable-disk":
+		return "Writable disk limit exceeded."
+	case "writable-files":
+		return "Writable file limit exceeded."
+	default:
+		if len(name) > 0 {
+			return strings.ToUpper(name[:1]) + name[1:] + " limit exceeded."
+		}
+		return "Limit exceeded."
+	}
+}
+
 func (s *localSession) denyLocked(eventType, target, reason string) (ExecResult, error) {
 	s.appendAudit(SandboxAuditEvent{EventType: eventType, Decision: DecisionReject, RejectionReason: reason, Action: EventSandboxDeny, Target: target})
 	return ExecResult{Denied: true, Status: -1, Stderr: []byte(reason)}, fail(CodeSandboxDenied, reason)
@@ -886,6 +959,7 @@ func (s *localSession) limitLocked(name, configured, reason string) error {
 		EventType:       EventSandboxLimit,
 		Decision:        DecisionReject,
 		RejectionReason: reason,
+		Action:          "limit",
 		LimitName:       name,
 		LimitConfigured: configured,
 		Target:          name,
@@ -919,6 +993,27 @@ func (s *localSession) appendAudit(ev SandboxAuditEvent) {
 		return
 	}
 	_ = writeSandboxAudit(s.auditDir, fmt.Sprintf("sandbox-%04d.json", ev.Sequence), ev)
+}
+
+func (s *localSession) hasSymlinkComponent(canonical string) (bool, error) {
+	check := s.root
+	for _, comp := range strings.Split(filepath.FromSlash(canonical), string(os.PathSeparator)) {
+		if comp == "" || comp == "." {
+			continue
+		}
+		check = filepath.Join(check, comp)
+		info, err := os.Lstat(check)
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *localSession) canonicalInRoot(projectPath string) (string, error) {
@@ -1278,9 +1373,9 @@ func (a FailClosedAdapter) Capabilities() []Capability {
 // Open always fails closed when a required capability is missing.
 func (a FailClosedAdapter) Open(context.Context, OpenRequest) (Session, error) {
 	missing := missingRequiredCapabilities(a.Capabilities())
-	reason := "missing capabilities " + strings.Join(missing, ", ") + "; autonomous execution disabled"
+	reason := fmt.Sprintf("Missing capabilities %s; autonomous execution disabled.", strings.Join(missing, ", "))
 	if a.Platform {
-		reason = "platform unsupported; autonomous execution disabled"
+		reason = "Platform unsupported; autonomous execution disabled."
 	}
 	return nil, fail(CodeSandboxFailClosed, reason)
 }
