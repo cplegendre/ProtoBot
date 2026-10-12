@@ -36,7 +36,6 @@ const (
 // it must not fall back to a weaker profile.
 const (
 	CodeSandboxDenied     = "sandbox.denied"
-	CodeSandboxCapability = "sandbox.capability"
 	CodeSandboxLimit      = "sandbox.limit"
 	CodeSandboxCancelled  = "sandbox.cancelled"
 	CodeSandboxFailClosed = "sandbox.fail_closed"
@@ -243,6 +242,7 @@ type ConformanceReport struct {
 	AutonomousExecution bool              `json:"autonomous_execution"`
 	FailClosedReason    string            `json:"fail_closed_reason,omitempty"`
 	AuditHead           string            `json:"audit_head,omitempty"`
+	AuditHeads          map[string]string `json:"audit_heads,omitempty"`
 }
 
 // VerifyAuditChain reports whether events form a valid v1 hash chain.

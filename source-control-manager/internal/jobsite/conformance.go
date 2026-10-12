@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -102,9 +104,121 @@ func (e *ConformanceEnv) OpenRequest(role string) OpenRequest {
 	}
 }
 
+type trackingSession struct {
+	name    string
+	session Session
+}
+
+type trackingAdapter struct {
+	Adapter
+	mu       sync.Mutex
+	sessions []trackingSession
+	counts   map[string]int
+}
+
+func newTrackingAdapter(inner Adapter) *trackingAdapter {
+	return &trackingAdapter{
+		Adapter: inner,
+		counts:  make(map[string]int),
+	}
+}
+
+func (t *trackingAdapter) Open(ctx context.Context, req OpenRequest) (Session, error) {
+	s, err := t.Adapter.Open(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.counts[req.Role]++
+	name := fmt.Sprintf("%s-%d", req.Role, t.counts[req.Role])
+	t.sessions = append(t.sessions, trackingSession{name: name, session: s})
+	return s, nil
+}
+
+func aggregateAuditHead(heads map[string]string) string {
+	if len(heads) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(heads))
+	for k := range heads {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteString(":")
+		b.WriteString(heads[k])
+		b.WriteString("\n")
+	}
+	return digestBytes([]byte(b.String()))
+}
+
+func verifySessionAudit(s Session) error {
+	events := s.Audit()
+	if len(events) == 0 {
+		return fmt.Errorf("session has no audit events")
+	}
+	if err := VerifyAuditChain(events); err != nil {
+		return fmt.Errorf("audit chain invalid: %w", err)
+	}
+	for _, ev := range events {
+		if ev.ContractVersion != ContractVersion {
+			return fmt.Errorf("audit contract_version %q != %q", ev.ContractVersion, ContractVersion)
+		}
+		if ev.BackendName == "" {
+			return fmt.Errorf("audit missing backend_name")
+		}
+		if ev.BackendVersion == "" {
+			return fmt.Errorf("audit missing backend_version")
+		}
+		if ev.PolicyVersion == 0 {
+			return fmt.Errorf("audit missing policy_version")
+		}
+		if ev.PolicyDigest == "" {
+			return fmt.Errorf("audit missing policy_digest")
+		}
+		if ev.WorkItem == "" {
+			return fmt.Errorf("audit missing work_item")
+		}
+		if ev.Role == "" {
+			return fmt.Errorf("audit missing role")
+		}
+		if ev.TraceID == "" {
+			return fmt.Errorf("audit missing trace_id")
+		}
+		if ev.Sequence <= 0 {
+			return fmt.Errorf("audit invalid sequence %d", ev.Sequence)
+		}
+		if ev.PreviousDigest == "" {
+			return fmt.Errorf("audit missing previous_digest")
+		}
+		if ev.EventDigest == "" {
+			return fmt.Errorf("audit missing event_digest")
+		}
+		if ev.EventType == "" {
+			return fmt.Errorf("audit missing event_type")
+		}
+		if ev.Decision == "" {
+			return fmt.Errorf("audit missing decision")
+		}
+		if ev.Action == "" {
+			return fmt.Errorf("audit missing action")
+		}
+		if ev.Target == "" {
+			return fmt.Errorf("audit missing target")
+		}
+	}
+	return nil
+}
+
 // RunSandboxConformance executes the backend-neutral v1 acceptance suite.
 // Downstream adapters (#172, #219) call this function; it does not require
 // testing.T so a conformance runner can invoke it.
+// This suite validates sandbox adapter behavior at the API boundary; this suite
+// alone is insufficient to enable autonomous execution until an integration-level
+// check exercises host/peer access from inside the Worker execution boundary.
 func RunSandboxConformance(ctx context.Context, adapter Adapter, env *ConformanceEnv) *ConformanceReport {
 	report := &ConformanceReport{
 		ContractVersion:   ContractVersion,
@@ -116,36 +230,59 @@ func RunSandboxConformance(ctx context.Context, adapter Adapter, env *Conformanc
 	}
 	if missing := missingRequiredCapabilities(adapter.Capabilities()); len(missing) > 0 {
 		report.AutonomousExecution = false
-		report.FailClosedReason = "missing capabilities " + strings.Join(missing, ", ") + "; autonomous execution disabled"
+		report.FailClosedReason = fmt.Sprintf("Missing capabilities %s; autonomous execution disabled.", strings.Join(missing, ", "))
 		report.add(CheckResult{ID: "SB-FC-001", Name: "Missing capability disables autonomous execution", Passed: true, Detail: report.FailClosedReason})
 		report.Passed = false
 		return report
 	}
 
-	sessionA, err := adapter.Open(ctx, env.OpenRequest(RoleWorkerA))
+	tracker := newTrackingAdapter(adapter)
+	sessionA, err := tracker.Open(ctx, env.OpenRequest(RoleWorkerA))
 	if err != nil {
 		report.failClosed("SB-FC-001", err)
 		return report
 	}
-	defer func() { _ = sessionA.Close() }()
-	sessionB, err := adapter.Open(ctx, env.OpenRequest(RoleWorkerB))
+	sessionB, err := tracker.Open(ctx, env.OpenRequest(RoleWorkerB))
 	if err != nil {
 		report.failClosed("SB-FC-001", err)
 		return report
 	}
-	defer func() { _ = sessionB.Close() }()
 
 	report.AutonomousExecution = true
-	runChecks(ctx, report, adapter, env, sessionA, sessionB)
+	runChecks(ctx, report, tracker, env, sessionA, sessionB)
+
+	// Close Worker A, Worker B, and auxiliary sessions before finalizing the report.
+	if err := sessionA.Close(); err != nil {
+		report.add(CheckResult{ID: "SB-LIFE-003", Name: "Worker A session cleanup", Passed: false, Detail: err.Error()})
+	}
+	if err := sessionB.Close(); err != nil {
+		report.add(CheckResult{ID: "SB-LIFE-003", Name: "Worker B session cleanup", Passed: false, Detail: err.Error()})
+	}
+	for _, ts := range tracker.sessions {
+		if err := ts.session.Close(); err != nil {
+			report.add(CheckResult{ID: "SB-LIFE-003", Name: "Session cleanup: " + ts.name, Passed: false, Detail: err.Error()})
+		}
+	}
+
+	// Verify every session chain and required field, and report per-session heads and aggregate head.
+	report.AuditHeads = make(map[string]string)
+	for _, ts := range tracker.sessions {
+		if err := verifySessionAudit(ts.session); err != nil {
+			report.add(CheckResult{ID: "SB-AUD-002", Name: "Session audit chain: " + ts.name, Passed: false, Detail: err.Error()})
+		}
+		events := ts.session.Audit()
+		if len(events) > 0 {
+			report.AuditHeads[ts.name] = events[len(events)-1].EventDigest
+		}
+	}
+	report.AuditHead = aggregateAuditHead(report.AuditHeads)
+
 	report.Passed = report.allPassed()
 	if !report.Passed {
 		report.AutonomousExecution = false
 		if report.FailClosedReason == "" {
-			report.FailClosedReason = "conformance check failed; autonomous execution disabled"
+			report.FailClosedReason = "Conformance check failed; autonomous execution disabled."
 		}
-	}
-	if events := sessionA.Audit(); len(events) > 0 {
-		report.AuditHead = events[len(events)-1].EventDigest
 	}
 	return report
 }
@@ -549,9 +686,31 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 		return nil
 	})
 	report.check("SB-CRED-005", "Broker token is absent from audit records", func() error {
+		// Probe with sentinel in destination
+		_, _ = sessionA.Execute(ctx, ExecRequest{
+			Executable: ApprovedFetchName,
+			Digest:     ApprovedFetchDigest,
+			Network: &NetworkRequest{
+				Destination: env.Sentinel,
+				Protocol:    AllowedProtocol,
+				Method:      AllowedMethod,
+				Path:        AllowedNetworkPath,
+			},
+		})
+		// Probe with sentinel in path
+		_, _ = sessionA.Execute(ctx, ExecRequest{
+			Executable: ApprovedFetchName,
+			Digest:     ApprovedFetchDigest,
+			Network: &NetworkRequest{
+				Destination: AllowedDestination,
+				Protocol:    AllowedProtocol,
+				Method:      AllowedMethod,
+				Path:        "/v1/" + env.Sentinel,
+			},
+		})
 		for _, ev := range sessionA.Audit() {
-			if containsSentinel(ev.Target, ev.RejectionReason, ev.Action, ev.WorkItem, ev.TraceID) {
-				return fmt.Errorf("credential sentinel in audit record")
+			if auditEventContainsSentinel(ev, env.Sentinel) || auditEventContainsSentinel(ev, sandboxBrokerToken) {
+				return fmt.Errorf("credential sentinel in audit record field: %#v", ev)
 			}
 		}
 		return nil
@@ -691,9 +850,12 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 		if second.Root() == root {
 			return fmt.Errorf("second sandbox reused the first root")
 		}
-		data, err := second.ReadPath(ctx, "tests/canonical/secret_scratch.go")
-		if err == nil && len(data) > 0 {
-			return fmt.Errorf("prior scratch file is present in second session")
+		_, err = second.ReadPath(ctx, "tests/canonical/secret_scratch.go")
+		if err == nil {
+			return fmt.Errorf("prior scratch file read succeeded unexpectedly")
+		}
+		if errorCode(err) != CodeSandboxDenied && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("expected not-found or sandbox.denied, got: %w", err)
 		}
 		return nil
 	})
@@ -728,10 +890,47 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 		}, "cpu")
 	})
 	report.check("SB-LIM-003", "Memory limit is enforced and recorded", func() error {
-		return checkLimit(ctx, adapter, env, func(req *OpenRequest) {
+		// Oversize write
+		if err := checkLimit(ctx, adapter, env, func(req *OpenRequest) {
 			req.Limits.MemoryBytes = 4
 		}, func(session Session) error {
 			err := session.WritePath(ctx, currentTestPath, []byte("too-large-payload\n"), ModeFile)
+			return expectCode(err, CodeSandboxLimit)
+		}, "memory"); err != nil {
+			return err
+		}
+		// Oversize read
+		if err := checkLimit(ctx, adapter, env, func(req *OpenRequest) {
+			req.Limits.MemoryBytes = 4
+		}, func(session Session) error {
+			_, err := session.ReadPath(ctx, sharedDocPath)
+			return expectCode(err, CodeSandboxLimit)
+		}, "memory"); err != nil {
+			return err
+		}
+		// Oversize Git output
+		if err := checkLimit(ctx, adapter, env, func(req *OpenRequest) {
+			req.Limits.MemoryBytes = 4
+		}, func(session Session) error {
+			_, err := session.Git(ctx, "log", "-n", "1")
+			return expectCode(err, CodeSandboxLimit)
+		}, "memory"); err != nil {
+			return err
+		}
+		// Oversize network response
+		return checkLimit(ctx, adapter, env, func(req *OpenRequest) {
+			req.Limits.MemoryBytes = 4
+		}, func(session Session) error {
+			_, err := session.Execute(ctx, ExecRequest{
+				Executable: ApprovedFetchName,
+				Digest:     ApprovedFetchDigest,
+				Network: &NetworkRequest{
+					Destination: AllowedDestination,
+					Protocol:    AllowedProtocol,
+					Method:      AllowedMethod,
+					Path:        AllowedNetworkPath,
+				},
+			})
 			return expectCode(err, CodeSandboxLimit)
 		}, "memory")
 	})
@@ -834,6 +1033,23 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 	})
 }
 
+func auditEventContainsSentinel(ev SandboxAuditEvent, sentinel string) bool {
+	fields := []string{
+		ev.ContractVersion, ev.BackendName, ev.BackendVersion,
+		ev.PolicyDigest, ev.WorkItem, ev.Role, ev.TraceID,
+		ev.PreviousDigest, ev.EventDigest,
+		ev.EventType, ev.Decision, ev.Action, ev.Target,
+		ev.RejectionReason, ev.Executable, ev.ExecutableDigest,
+		ev.LimitName, ev.LimitConfigured, ev.CleanupResult,
+	}
+	for _, f := range fields {
+		if strings.Contains(f, sentinel) {
+			return true
+		}
+	}
+	return false
+}
+
 func checkLimit(ctx context.Context, adapter Adapter, env *ConformanceEnv, tweak func(*OpenRequest), op func(Session) error, name string) error {
 	req := env.OpenRequest(RoleWorkerA)
 	tweak(&req)
@@ -898,7 +1114,7 @@ func expectDenied(err error) error {
 	if err == nil {
 		return fmt.Errorf("expected sandbox denial, got success")
 	}
-	if errorCode(err) != CodeSandboxDenied && errorCode(err) != CodePatchRejected {
+	if errorCode(err) != CodeSandboxDenied {
 		return fmt.Errorf("expected %s, got %v", CodeSandboxDenied, err)
 	}
 	return nil

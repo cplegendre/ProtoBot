@@ -57,7 +57,7 @@ func TestEnvironForwardsCallerGitConfigGlobal(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runner.Close()
-	cmd := runner.CommandContext(context.Background(), "status")
+	cmd := runner.RawCommandContext(context.Background(), "status")
 	if !slices.Contains(cmd.Env, customGlobal) {
 		t.Fatalf("runner command env missing caller GIT_CONFIG_GLOBAL: %q", cmd.Env)
 	}

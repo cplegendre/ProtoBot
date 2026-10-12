@@ -1,10 +1,13 @@
 package jobsite
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +43,9 @@ func TestLocalAdapterConformance(t *testing.T) {
 	}
 	if report.AuditHead == "" {
 		t.Fatal("missing audit head")
+	}
+	if len(report.AuditHeads) == 0 {
+		t.Fatal("missing per-session audit heads")
 	}
 	if _, err := json.Marshal(report); err != nil {
 		t.Fatal(err)
@@ -460,6 +466,206 @@ func TestSequentialProcessExecutionDoesNotExhaustLimit(t *testing.T) {
 		res, err := session.Git(context.Background(), "status")
 		if err != nil || res.Denied {
 			t.Fatalf("sequential git status %d failed: err=%v, res=%+v", i, err, res)
+		}
+	}
+}
+
+func TestRepeatedNewFileWritePreservesCreateAndAppliesPatch(t *testing.T) {
+	ctx := context.Background()
+	env := NewConformanceEnv(t)
+	adapter := NewLocalAdapter()
+	session, err := adapter.Open(ctx, env.OpenRequest(RoleWorkerA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = session.Close() }()
+
+	newPath := "tests/canonical/repeated_new_test.go"
+	content1 := []byte("package canonical\n// first write\n")
+	content2 := []byte("package canonical\n// second write with update\n")
+
+	if err := session.WritePath(ctx, newPath, content1, ModeFile); err != nil {
+		t.Fatalf("first WritePath failed: %v", err)
+	}
+	if err := session.WritePath(ctx, newPath, content2, ModeFile); err != nil {
+		t.Fatalf("second WritePath failed: %v", err)
+	}
+
+	bundle, err := session.CollectPatch(ctx)
+	if err != nil {
+		t.Fatalf("CollectPatch failed: %v", err)
+	}
+
+	found := false
+	for _, op := range bundle.Operations {
+		if op.Path == newPath {
+			found = true
+			if op.Action != ActionCreate {
+				t.Fatalf("expected action %q for repeated write of new file, got %q", ActionCreate, op.Action)
+			}
+			if !bytes.Equal(op.Content, content2) {
+				t.Fatalf("expected content %q, got %q", string(content2), string(op.Content))
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("operation for %q not found in collected patch", newPath)
+	}
+
+	applied, err := ApplyPatch(env.Export.Integration, env.Export.Policy, bundle)
+	if err != nil {
+		t.Fatalf("ApplyPatch failed: %v", err)
+	}
+	if applied.Decision.Decision != DecisionAccept {
+		t.Fatalf("expected DecisionAccept, got %q (reason: %s)", applied.Decision.Decision, applied.Decision.RejectionReason)
+	}
+}
+
+func TestSymlinkReadAndWriteDenied(t *testing.T) {
+	ctx := context.Background()
+	env := NewConformanceEnv(t)
+	adapter := NewLocalAdapter()
+	session, err := adapter.Open(ctx, env.OpenRequest(RoleWorkerA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = session.Close() }()
+
+	// Symlink redirecting within sandbox
+	targetInternal := filepath.Join(session.Root(), "tests", "canonical", "canonical_test.go")
+	linkInternal := filepath.Join(session.Root(), "tests", "canonical", "internal_symlink.go")
+	if err := os.Symlink(targetInternal, linkInternal); err != nil {
+		t.Fatal(err)
+	}
+
+	// Symlink escaping sandbox
+	linkEscape := filepath.Join(session.Root(), "tests", "canonical", "escape_symlink.go")
+	if err := os.Symlink("/etc/passwd", linkEscape); err != nil {
+		t.Fatal(err)
+	}
+
+	// Deny read through internal symlink
+	_, err = session.ReadPath(ctx, "tests/canonical/internal_symlink.go")
+	if errorCode(err) != CodeSandboxDenied {
+		t.Fatalf("expected %s reading internal symlink, got %v", CodeSandboxDenied, err)
+	}
+
+	// Deny write through internal symlink
+	err = session.WritePath(ctx, "tests/canonical/internal_symlink.go", []byte("evil"), ModeFile)
+	if errorCode(err) != CodeSandboxDenied {
+		t.Fatalf("expected %s writing internal symlink, got %v", CodeSandboxDenied, err)
+	}
+
+	// Deny read through escape symlink
+	_, err = session.ReadPath(ctx, "tests/canonical/escape_symlink.go")
+	if errorCode(err) != CodeSandboxDenied {
+		t.Fatalf("expected %s reading escape symlink, got %v", CodeSandboxDenied, err)
+	}
+
+	// Deny write through escape symlink
+	err = session.WritePath(ctx, "tests/canonical/escape_symlink.go", []byte("evil"), ModeFile)
+	if errorCode(err) != CodeSandboxDenied {
+		t.Fatalf("expected %s writing escape symlink, got %v", CodeSandboxDenied, err)
+	}
+}
+
+func TestMemoryLimitsOversizeOperations(t *testing.T) {
+	ctx := context.Background()
+	env := NewConformanceEnv(t)
+	adapter := NewLocalAdapter()
+
+	// Oversize read
+	reqRead := env.OpenRequest(RoleWorkerA)
+	reqRead.Limits.MemoryBytes = 4
+	sRead, err := adapter.Open(ctx, reqRead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sRead.Close() }()
+	_, err = sRead.ReadPath(ctx, sharedDocPath)
+	if errorCode(err) != CodeSandboxLimit {
+		t.Fatalf("expected CodeSandboxLimit on oversize read, got %v", err)
+	}
+
+	// Oversize Git output
+	reqGit := env.OpenRequest(RoleWorkerA)
+	reqGit.Limits.MemoryBytes = 4
+	sGit, err := adapter.Open(ctx, reqGit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sGit.Close() }()
+	_, err = sGit.Git(ctx, "log", "-n", "1")
+	if errorCode(err) != CodeSandboxLimit {
+		t.Fatalf("expected CodeSandboxLimit on oversize Git output, got %v", err)
+	}
+
+	// Oversize network response
+	reqNet := env.OpenRequest(RoleWorkerA)
+	reqNet.Limits.MemoryBytes = 4
+	sNet, err := adapter.Open(ctx, reqNet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = sNet.Close() }()
+	_, err = sNet.Execute(ctx, ExecRequest{
+		Executable: ApprovedFetchName,
+		Digest:     ApprovedFetchDigest,
+		Network: &NetworkRequest{
+			Destination: AllowedDestination,
+			Protocol:    AllowedProtocol,
+			Method:      AllowedMethod,
+			Path:        AllowedNetworkPath,
+		},
+	})
+	if errorCode(err) != CodeSandboxLimit {
+		t.Fatalf("expected CodeSandboxLimit on oversize network response, got %v", err)
+	}
+}
+
+func TestSentinelInNetworkDestinationAndPathAbsentFromAudit(t *testing.T) {
+	ctx := context.Background()
+	env := NewConformanceEnv(t)
+	adapter := NewLocalAdapter()
+	session, err := adapter.Open(ctx, env.OpenRequest(RoleWorkerA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = session.Close() }()
+
+	sentinelDest := "secret-dest-sentinel.example.invalid"
+	sentinelPath := "/v1/secret-path-sentinel"
+
+	// Call with sentinel destination
+	_, _ = session.Execute(ctx, ExecRequest{
+		Executable: ApprovedFetchName,
+		Digest:     ApprovedFetchDigest,
+		Network: &NetworkRequest{
+			Destination: sentinelDest,
+			Protocol:    AllowedProtocol,
+			Method:      AllowedMethod,
+			Path:        AllowedNetworkPath,
+		},
+	})
+
+	// Call with sentinel path
+	_, _ = session.Execute(ctx, ExecRequest{
+		Executable: ApprovedFetchName,
+		Digest:     ApprovedFetchDigest,
+		Network: &NetworkRequest{
+			Destination: AllowedDestination,
+			Protocol:    AllowedProtocol,
+			Method:      AllowedMethod,
+			Path:        sentinelPath,
+		},
+	})
+
+	for _, ev := range session.Audit() {
+		if auditEventContainsSentinel(ev, sentinelDest) {
+			t.Fatalf("sentinel destination leaked into audit field: %#v", ev)
+		}
+		if auditEventContainsSentinel(ev, sentinelPath) {
+			t.Fatalf("sentinel path leaked into audit field: %#v", ev)
 		}
 	}
 }

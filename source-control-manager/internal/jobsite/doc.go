@@ -6,4 +6,9 @@
 // conformance suite. It does not extend the Drafting Table Source
 // Control Manager face. The integration loop is issue #69; Fullsend
 // mapping is issue #172.
+//
+// The reusable conformance suite validates adapter API behavior; this
+// suite alone is insufficient to enable autonomous execution until an
+// integration-level check exercises host/peer access from inside the
+// Worker execution boundary.
 package jobsite
