@@ -1075,7 +1075,7 @@ func sandboxEnv(scratch string) []string {
 
 func classifyAndPrepareGitArgs(args []string) ([]string, error) {
 	if len(args) == 0 {
-		return nil, errors.New("Git command is missing.")
+		return nil, errors.New("Git command is missing")
 	}
 	first := args[0]
 	if strings.HasPrefix(first, "-") {
