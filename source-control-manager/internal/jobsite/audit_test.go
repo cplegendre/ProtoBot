@@ -326,7 +326,7 @@ func TestWriteSandboxAudit(t *testing.T) {
 		Sequence:        1,
 		EventType:       EventSandboxOpen,
 		Decision:        DecisionAccept,
-		PreviousDigest:  zeroDigest(),
+		PreviousDigest:  emptyDigest(),
 		EventDigest:     "sha256:abc",
 	}
 

@@ -268,13 +268,13 @@ rootless-OCI/microVM containment profile with external network and
 credential brokers is the independent sandbox fallback when OpenShell
 itself is unavailable or incompatible with the target platform.
 
-ProtoBot depends on a backend-neutral execution and sandbox contract,
+ProtoBot depends on the backend-neutral Job Site Sandbox Contract,
 not on Fullsend or OpenShell APIs
 ([Job Site Sandbox Contract](jobsite-sandbox.md)). Fullsend does not
 replace ProtoBot's change-set/WMS control plane, role-projected
 repositories, dual-worker integration, Triage sanitizer, or
-conformance evidence. A backend that cannot pass the contract's
-isolation, network, and credential acceptance tests cannot run
+conformance evidence. A backend that cannot pass any check of the
+contract cannot run
 autonomous work.
 
 OpenCode's model-provider flexibility applies directly to the Drafting
@@ -329,7 +329,7 @@ ProtoBot's own components need (CLI tools, Go binaries, etc.).
 - [Drafting Table WMS Integration](drafting-table-wms.md) — Backend-neutral
   WMS operations and blocked-work resolution.
 - [Job Site Sandbox Contract](jobsite-sandbox.md) — Backend-neutral
-  execution and sandbox acceptance suite.
+  sandbox conformance suite.
 - [Git and Project-Repository Integration](git-integration.md) —
   Project identification, branches, commits, PR preparation, and
   approved specification state.

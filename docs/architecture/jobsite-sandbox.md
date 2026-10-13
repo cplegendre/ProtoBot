@@ -3,9 +3,10 @@
 > Interface contract — issue #79 — October 2026
 > Document revision: `jobsite-sandbox/v1`
 >
-> Defines the backend-neutral execution and sandbox contract that a
-> local adapter, Fullsend/OpenShell adapter, or future backend must
-> pass before the Job Site may run autonomous work.
+> Defines the Job Site Sandbox Contract. Its sandbox conformance suite
+> is `RunSandboxConformance`. The local test adapter, Fullsend/OpenShell
+> adapter, or future backend must pass the contract before the Job Site
+> may run autonomous work.
 
 **Contents:**
 
@@ -40,7 +41,7 @@ The contract covers:
 - filesystem and Git-object isolation for Worker role projections;
 - per-executable and per-destination L7 network policy;
 - credential non-exposure, with injection only at a boundary broker;
-- cancellation, lease expiry, and ephemeral cleanup;
+- cancellation, sandbox-lease expiry, and ephemeral cleanup;
 - wall-clock, CPU, memory, process-count, and writable disk/file
   limits; and
 - tamper-evident private audit evidence tied to the work-item trace.
@@ -60,8 +61,8 @@ the Worker projection isolation fixtures from issue #78.
 - [Authentication and Credential Isolation][auth-isolation]
   defines the Bridge/Gate pattern the boundary broker follows.
 - [Source Control Manager](source-control-manager.md) remains the Git
-  and Git host boundary for the Drafting Table. This contract does
-  not add a Job Site SCM face
+  and Git host boundary for the Drafting Table. This contract does not
+  add a Job Site face
   ([Q21](open-questions.md#q21-source-control-manager-job-site-face)).
 - [Validation Rules](validation-rules.md) and the
   [Drafting Table WMS Integration Contract](drafting-table-wms.md)
@@ -89,16 +90,16 @@ This contract does not:
 
 | Actor or component | Sandbox responsibility | May it weaken policy? |
 | --- | --- | --- |
-| Job Site control plane | Select a backend, open sessions against role projections, and refuse autonomous execution when the suite fails. | No. |
+| Job Site control plane | Select a backend, open sessions against role projections, and refuse autonomous execution when the API suite fails or integration-boundary verification is not true. | No. |
 | Sandbox adapter | Enforce isolation, network policy, credential brokering, limits, cleanup, and audit for one Worker session. | No. |
 | Local test adapter | Deterministic in-process backend used by this suite. | No. |
 | Fullsend / OpenShell adapter | Map this seam onto OpenShell (or Fullsend's OpenShell path) without becoming a ProtoBot control-plane dependency. | No. |
-| Portable rootless-OCI/microVM profile | Independent fallback when OpenShell cannot pass the suite on a platform. | No. A plain container is not sufficient. |
-| Worker / Inspector agent | Run only inside a session that already passed Open. | No. Prompts are not a security boundary. |
+| Portable rootless-OCI/microVM profile | The single-player sandbox and fallback when OpenShell cannot pass the suite on a platform. | No. A plain container is not sufficient. |
+| Worker agent | Run only inside a session that already passed Open. | No. Prompts are not a security boundary. |
 | Patch/Ownership Validator | Treat returned PatchBundle v1 payloads as untrusted and re-check role paths. | No. |
 | WMS Adapter | Own work-item lifecycle. Consume only the work-item identifier on audit records. | No sandbox mutation of WMS state. |
 
-The adapter is a Job Site execution seam. ProtoBot continues to own
+The adapter is the sandbox adapter seam. ProtoBot continues to own
 materialization, projection, PatchBundle validation, private
 Integration, Triage sanitization, and conformance evidence.
 
@@ -119,7 +120,7 @@ supported or not, with no silent skip:
 | `git-isolation` | Forbidden refs, objects, remotes, reflogs, and alternates stay unavailable. |
 | `network-policy` | Deny by default; allow only an approved executable to an approved destination, protocol, method, and L7 path. |
 | `credential-broker` | Downstream credentials never enter the sandbox; the broker injects them after authorization and strips them before responses return. |
-| `lifecycle-cleanup` | Cancel, lease expiry, and Close terminate the process tree and remove ephemeral state. |
+| `lifecycle-cleanup` | Cancel, sandbox-lease expiry, and Close terminate the process tree and remove ephemeral state. |
 | `resource-limits` | Enforce wall-clock, CPU, memory, process-count, and writable disk/file limits. |
 | `audit-chain` | Record a SHA-256 hash chain of sandbox events tied to the work-item trace. |
 
@@ -131,10 +132,11 @@ profile.
 
 ## Adapter seam
 
-Backends implement one adapter with two operations plus session
-methods. The Go types live in
-`source-control-manager/internal/jobsite` so #172 and #219 can invoke
-the same suite.
+Backends implement one adapter with three operations plus session
+methods. The Go types live in `source-control-manager/internal/jobsite`.
+The v1 API suite is internal to the Source Control Manager and runs in
+that process; #172 must add a separate integration-level suite for
+checks that must execute inside the adapter runtime.
 
 | Operation | Input | Result |
 | --- | --- | --- |
@@ -142,6 +144,10 @@ the same suite.
 | `Capabilities` | — | The v1 capability set and support flags. |
 | `Open` | Role, projection, projection policy, limits, network allowlist, work-item trace, optional lease | A session, or a fail-closed error. |
 | Session `ReadPath` / `WritePath` | Project-relative path | Bytes, or a denial. |
+| Session `Role` | — | The role bound to the projection. |
+| Session `Root` | — | The host-local workspace root for this internal suite. |
+| Session `Environ` | — | The sandbox environment for credential checks. |
+| Session `EphemeralDirs` | — | Host-local ephemeral directories for credential checks. |
 | Session `Git` | Argument list | Git status and output, or a denial. |
 | Session `Execute` | Executable, digest, optional network request | Status and body, or a denial. |
 | Session `CollectPatch` | — | PatchBundle v1 of accepted writes. |
@@ -157,9 +163,11 @@ Stable failure codes are `sandbox.denied`, `sandbox.limit`,
 
 `RunSandboxConformance` is the reusable suite. It returns a
 `ConformanceReport` covering backend identity and version, policy
-version and digest, executable digests, authorization decisions,
-network rules, resource limits, cleanup results, audit head, and
-whether autonomous execution remains enabled.
+version and digest, executable digests, resource limits, check results,
+integration-boundary status, audit heads, and whether autonomous
+execution remains enabled. The report does not contain authorization
+decisions, network rules, or cleanup results; those are represented by
+check details and the session audit chain.
 
 ---
 
@@ -171,6 +179,8 @@ may write `test` paths. Worker B may write `implementation` paths.
 `integration-only`, and `attestation-only` paths are denied to
 Workers. Host paths, peer Worker directories, the canonical
 repository, and private Integration state are denied.
+Both absolute paths and relative traversal paths such as `../` are
+denied.
 
 Git isolation reuses the projection properties: parentless synthetic
 SHA-1 roots, independent object databases, no remotes, no Git
@@ -199,9 +209,16 @@ The suite rejects:
 - an alternate port; and
 - a TLS-bypass attempt.
 
-The local adapter implements this with loopback in-process servers.
+The local test adapter implements this with loopback in-process servers.
 A hosted backend must produce the same denials under kernel
 enforcement. Loopback stubs do not waive the policy.
+
+Stable network rejection categories are
+`network:unapproved-executable`, `network:ip-literal`,
+`network:dns-tunneling`, `network:redirect`, `network:raw-socket`,
+`network:alternate-port`, `network:tls-bypass`,
+`network:sentinel-leak`, and `network:default-deny`. The suite asserts
+the category as well as the denial code.
 
 ---
 
@@ -223,7 +240,7 @@ write boundary.
 
 ## Lifecycle, cancellation, and cleanup
 
-Cancellation, lease expiry, and Close terminate the full process
+Cancellation, sandbox-lease expiry, and Close terminate the full process
 tree. Ephemeral repositories, processes, mounts, network policy, and
 broker sessions are removed. The next sandbox cannot recover prior
 state: it receives a fresh copy of the role projection, not the
@@ -233,6 +250,10 @@ v1 does not require a numeric process-kill deadline beyond "prompt
 termination observed by the suite." Hosted backends may document a
 stricter deadline; they must still pass the suite's cancellation
 check.
+
+The sandbox lease is a per-session deadline. The Job Site sets it from
+the WMS claim-lease expiry, but it is not the WMS claim lease: it
+confers no claim ownership or fencing authority.
 
 ---
 
@@ -273,8 +294,11 @@ authorization decision, allowed request, denial, cancellation, and
 cleanup. Credentials, remote URLs, peer source, raw Worker logs, and
 raw Inspector findings stay out of the record.
 
-Audit files are private Job Site evidence. They are not project
-repository content and are not a WMS Adapter resource.
+Audit evidence is private Job Site evidence. It is not project
+repository content and is not a WMS Adapter resource. Production
+backends archive the chain through the Evidence and artifact store. The
+local test adapter keeps its chain in memory only and does not create
+Worker-visible audit files.
 
 ---
 
@@ -299,7 +323,7 @@ that implements it changes.
 
 | Mode | Backend | Credential posture |
 | --- | --- | --- |
-| Single-player | Local process. The local test adapter proves the seam. A portable rootless-OCI/microVM profile is the production fallback when OpenShell is unavailable. | User-owned local credential; the sandbox receives no reusable downstream secret. |
+| Single-player | Local process. A portable rootless-OCI/microVM profile is the sandbox; the local test adapter is a deterministic fixture, not the production backend. | User-owned local credential; the sandbox receives no reusable downstream secret. |
 | Multi-player | Hosted Job Site; Fullsend/OpenShell is the first backend. | OAuth 2.1 through the Bridge/Gate pattern. The sandbox still sees no downstream credential. |
 | Web | Same hosted Job Site and sandbox backends as multi-player. | OAuth 2.1 through Bridge/Gate plus application authorization. |
 
@@ -307,13 +331,14 @@ Relevant persistent state remains owned by existing components:
 
 | State | Owner | Sandbox contract |
 | --- | --- | --- |
-| Role projections and PatchBundle v1 | Job Site projection fixture (#78) | Open copies a projection; CollectPatch returns a bundle. |
+| Role projections and PatchBundle v1 | Projector/Test Catalog (#78) | Open copies a projection; CollectPatch returns a bundle. |
 | Work-item lifecycle | WMS Adapter | Trace identifier only; no lifecycle mutation. |
 | Specification records | Git through `ears-manager` | Not parsed or edited through sandbox operations. |
 | Canonical and Integration Git | Job Site private Integration / future Job Site face ([Q21](open-questions.md#q21-source-control-manager-job-site-face)) | Denied to Workers. |
-| Sandbox audit chain | Job Site ephemeral store | Private, hash-chained, destroyed or archived with the session. |
+| Sandbox audit chain | Evidence and artifact store | Private, hash-chained, archived by the Job Site. |
+| Project configuration (`.protobot/policy.yaml`) | Project policy | Selects the sandbox profile; cannot weaken this contract. |
 | Web session state | Web Drafting Table deployment | Never a sandbox workspace or write authority. |
-| Deployment-level project registry | Deployment operator | Selects the backend; cannot waive this contract. |
+| Deployment-level registry | Deployment-level registry | Registers adapter configurations; cannot select project policy or waive this contract. |
 
 Security posture:
 
@@ -341,13 +366,14 @@ contract. It:
 - injects the sentinel `PROTOBOT-SANDBOX-BROKER-TOKEN` only after
   authorization and strips it from responses;
 - enforces resource limits in-process;
-- records the v1 hash chain; and
+- records the v1 hash chain in memory for the fixture; and
 - deletes the workspace on Close.
 
 It does not require a cluster, external network access, or real
 downstream credentials. Its denials are the contract's observable
-behavior. Kernel enforcement is a hosted-backend concern and is
-validated when #172 maps this seam onto Fullsend/OpenShell.
+behavior. Kernel enforcement is validated by the integration-level
+suite when #172 maps this seam onto Fullsend/OpenShell or the portable
+profile.
 
 `go test ./internal/jobsite` in `source-control-manager` runs the
 suite against this adapter.
@@ -358,8 +384,9 @@ suite against this adapter.
 
 The suite is `RunSandboxConformance`. Downstream adapters call it
 with their `Adapter` and a `ConformanceEnv`. Each check records an
-identifier, name, pass/fail, and detail. A failed check sets
-`autonomous_execution` to false. The conformance suite exercises
+identifier, name, pass/fail, and detail. A full API pass sets `passed`
+to true, `integration_boundary_verified` to false, and
+`autonomous_execution` to false. The sandbox conformance suite exercises
 adapter and session API behavior (`ReadPath`, `WritePath`, `Git`,
 `Execute`). It does not run arbitrary binaries that probe host or
 peer filesystems from inside the Worker execution boundary. This suite
@@ -381,6 +408,7 @@ Fullsend/OpenShell adapter under #172).
 | `SB-FS-009` | Read a `shared` path, then write it. | Read allowed; write denied. |
 | `SB-FS-010` | Write an unclassified path. | Denied. |
 | `SB-FS-011` | CollectPatch after an allowed Worker A write; apply to Integration. | PatchBundle v1 accepted. |
+| `SB-FS-012` | Read and write relative traversal paths to the peer, source, and Integration roots. | Denied. |
 | `SB-GIT-001` | Worker A `git cat-file -e` of the implementation blob. | Non-zero or denied. |
 | `SB-GIT-002` | Worker B `git cat-file -e` of the canonical test blob. | Non-zero or denied. |
 | `SB-GIT-003` | `git remote` in a Worker session. | Empty. |
@@ -423,6 +451,18 @@ Fullsend/OpenShell adapter under #172).
 | `SB-FC-001` | Wrap the adapter with a missing capability. | `sandbox.fail_closed`; autonomous execution disabled. |
 | `SB-FC-002` | Report the platform unsupported. | `sandbox.fail_closed`; autonomous execution disabled. |
 | `SB-FC-003` | After one denial, attempt another forbidden write. | Still denied. |
+| `SB-FC-004` | Open Worker A with Worker B's projection. | Denied. |
+
+### Check ownership
+
+| Required control | Owner |
+| --- | --- |
+| Adapter and session API behavior | This sandbox conformance suite. |
+| Peer ref enumeration, shared object cache, and out-of-role patch paths | This suite plus the Patch/Ownership Validator. |
+| Host/peer reads, mounts, namespaces, ptrace, privileges, devices, syscalls, and Git checks from inside the actual agent process | #172 integration-level suite. |
+| Agent-readable proxy and log state | This suite where exposed through `Session`; #172 inside the runtime. |
+| Removal of mounts, network policy, and broker sessions | #172 integration-level suite. |
+| Autonomous-execution gate | API report must pass and `integration_boundary_verified` must be true. |
 
 ---
 
@@ -440,7 +480,7 @@ They are not ProtoBot control-plane dependencies.
 | Credential broker | Inference/routing proxy injects tokens at the network boundary. | Loopback broker injects and strips a sentinel token. |
 | Lifecycle | OpenShell session teardown; Fullsend post-script outside the sandbox. | Cancel/Close kill processes and `RemoveAll` the workspace. |
 | Resource limits | cgroup / microVM limits. | In-process counters and deadlines. |
-| Audit chain | Backend-specific event log mapped onto the v1 schema and hash chain. | JSON files plus in-memory hash chain. |
+| Audit chain | Backend-specific event log mapped onto the v1 schema and hash chain. | In-memory hash chain for the fixture. |
 | Fail-closed | Failed OpenShell acceptance disables autonomous execution. | `FailClosedAdapter` and capability checks. |
 
 Issue #172 owns runtime pinning, the concrete mapping, and a
@@ -448,8 +488,8 @@ conformance run against that mapping. This issue only names the
 seam. A Fullsend or OpenShell product-name claim without a passing
 `ConformanceReport` is not acceptance.
 
-The portable rootless-OCI/microVM profile is the independent
-fallback when OpenShell cannot satisfy a platform. It must pair
+The portable rootless-OCI/microVM profile is the single-player sandbox
+and fallback when OpenShell cannot satisfy a platform. It must pair
 filesystem/process isolation with an external egress policy proxy
 and credential broker, then pass this same suite.
 
@@ -461,12 +501,14 @@ and credential broker, then pass this same suite.
 | --- | --- |
 | Worker/Triage fixture loop and sanitized feedback routing | #69. |
 | Concrete Fullsend/OpenShell adapter and runtime pinning | #172. |
+| Implementation-aware Test Worker and Inspector projections, write rules, and shortcut prevention | #172. |
+| Integration-level Worker boundary and in-flight Git cancellation checks | #172. |
 | Corpus fixtures and conformance-runner integration | #217 and #219. |
-| Job Site SCM face for Integration Git | [Q21](open-questions.md#q21-source-control-manager-job-site-face). |
+| Job Site face for Integration Git | [Q21](open-questions.md#q21-source-control-manager-job-site-face). |
 | WMS lifecycle, fencing, and claims | Validation Rules and WMS contracts. |
 | Drafting Table harness sandbox (OpenCode, Claude Code, Codex) | Agent Harness Adapter Contract. That sandbox is not this Job Site contract. |
 | Numeric kill deadline tighter than suite observation | Hosted-backend documentation; v1 requires prompt termination. |
-| Long-term audit archive and retention | Project policy in `.protobot/policy.yaml`; v1 stores a private chain per session. |
+| Long-term audit archive and retention | Project policy in `.protobot/policy.yaml`; production evidence is archived in the Evidence and artifact store. |
 
 ---
 
@@ -483,21 +525,22 @@ and credential broker, then pass this same suite.
 - [Validation Rules](validation-rules.md) — Lifecycle authorization
   the sandbox must not bypass.
 - [Drafting Table WMS Integration](drafting-table-wms.md) —
-  Backend-neutral WMS operations, disjoint from this execution seam.
+  Backend-neutral WMS operations, disjoint from the sandbox adapter seam.
 - [Git and Project-Repository Integration](git-integration.md) —
   Canonical repository rules; Worker Git stays on role projections.
 - [Source Control Manager](source-control-manager.md) — Drafting
-  Table Git face; this contract does not extend it.
+  Table Git face; this contract does not extend it or add a Job Site
+  face.
 - [Agent Harness Adapter Contract](agent-harness/adapter-contract.md)
   — Drafting Table harness sandbox, a different boundary.
-- [User Interaction Flow](user-interaction-flow.md) — Building and
-  Inspecting phases that this sandbox hosts.
+- [User Interaction Flow](user-interaction-flow.md) — Building Workers;
+  Inspector sessions are deferred to #172.
 - [Drafting Table UX](drafting-table-ux.md) — Interactive surface;
   it does not open Job Site sandboxes.
 - [`ears-manager` CLI Integration Contract](ears-manager-cli.md) —
   Specification reads the Job Site consumes outside the sandbox.
-- [Open Design Questions](open-questions.md) — Q21, the Job Site
-  face.
+- [Open Design Questions](open-questions.md) — Q21 leaves the Job Site
+  face open.
 - [Related Work](related-work.md) — Fullsend, OpenShell, and the
   portable fallback behind this contract.
 

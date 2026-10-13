@@ -59,6 +59,9 @@ func (a *LocalAdapter) Open(ctx context.Context, req OpenRequest) (Session, erro
 	if req.Role != RoleWorkerA && req.Role != RoleWorkerB {
 		return nil, fail(CodeSandboxDenied, "Sandbox role is not a Worker role.")
 	}
+	if req.Projection.Role != req.Role {
+		return nil, fail(CodeSandboxDenied, "Sandbox projection role does not match the session role.")
+	}
 	if req.Projection.Path == "" {
 		return nil, fail(CodeSandboxDenied, "Sandbox projection path is missing.")
 	}
@@ -123,7 +126,6 @@ func (a *LocalAdapter) Open(ctx context.Context, req OpenRequest) (Session, erro
 		writes:        map[string]localWrite{},
 		env:           env,
 		allow:         append([]NetworkRule(nil), req.NetworkAllow...),
-		auditDir:      filepath.Join(scratch, auditDirName),
 		brokerSecret:  brokerSecret,
 		limitCPU:      req.Limits.CPU,
 		limitMemory:   req.Limits.MemoryBytes,
@@ -177,7 +179,6 @@ type localSession struct {
 	writtenFiles  int
 	cpuUsed       time.Duration
 	audit         []SandboxAuditEvent
-	auditDir      string
 	upstream      *httptest.Server
 	broker        *httptest.Server
 	brokerSecret  string
@@ -696,9 +697,6 @@ func (s *localSession) networkLocked(ctx context.Context, req ExecRequest) (Exec
 	if req.Executable != ApprovedFetchName || req.Digest != ApprovedFetchDigest {
 		return s.denyLocked(EventSandboxNetwork, "network:unapproved-executable", "Network executable is not approved.")
 	}
-	if netReq.Protocol != AllowedProtocol || netReq.Method != AllowedMethod {
-		return s.denyLocked(EventSandboxNetwork, "network:unapproved-protocol", "Network protocol or method is not approved.")
-	}
 	if looksLikeIP(netReq.Destination) {
 		return s.denyLocked(EventSandboxNetwork, "network:ip-literal", "Direct IP destinations are denied.")
 	}
@@ -814,12 +812,11 @@ func (s *localSession) networkLocked(ctx context.Context, req ExecRequest) (Exec
 	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
 		return s.denyLocked(EventSandboxNetwork, "network:redirect", "Network redirects are denied.")
 	}
-	ruleID := matchedRule.Destination + matchedRule.Path
 	s.appendAudit(SandboxAuditEvent{
 		EventType:        EventSandboxNetwork,
 		Decision:         DecisionAccept,
 		Action:           netReq.Method,
-		Target:           ruleID,
+		Target:           networkRuleTarget(*matchedRule),
 		Executable:       req.Executable,
 		ExecutableDigest: req.Digest,
 	})
@@ -844,8 +841,16 @@ func (s *localSession) findMatchingRule(executable, digest string, netReq *Netwo
 	return nil
 }
 
-func (s *localSession) ruleMatch(executable, digest string, netReq *NetworkRequest) bool {
-	return s.findMatchingRule(executable, digest, netReq) != nil
+func networkRuleTarget(rule NetworkRule) string {
+	fields := []string{
+		rule.Executable,
+		rule.Digest,
+		rule.Destination,
+		rule.Protocol,
+		rule.Method,
+		rule.Path,
+	}
+	return "network-rule:" + digestBytes([]byte(strings.Join(fields, "\x00")))
 }
 
 func (s *localSession) startBroker() {
@@ -979,7 +984,7 @@ func (s *localSession) appendAudit(ev SandboxAuditEvent) {
 	ev.Cycle = s.req.Cycle
 	ev.Sequence = len(s.audit) + 1
 	if len(s.audit) == 0 {
-		ev.PreviousDigest = zeroDigest()
+		ev.PreviousDigest = emptyDigest()
 	} else {
 		ev.PreviousDigest = s.audit[len(s.audit)-1].EventDigest
 	}
@@ -989,10 +994,6 @@ func (s *localSession) appendAudit(ev SandboxAuditEvent) {
 	}
 	ev.EventDigest = digest
 	s.audit = append(s.audit, ev)
-	if s.closed {
-		return
-	}
-	_ = writeSandboxAudit(s.auditDir, fmt.Sprintf("sandbox-%04d.json", ev.Sequence), ev)
 }
 
 func (s *localSession) hasSymlinkComponent(canonical string) (bool, error) {
@@ -1074,7 +1075,7 @@ func sandboxEnv(scratch string) []string {
 
 func classifyAndPrepareGitArgs(args []string) ([]string, error) {
 	if len(args) == 0 {
-		return nil, errors.New("git command is missing")
+		return nil, errors.New("Git command is missing.")
 	}
 	first := args[0]
 	if strings.HasPrefix(first, "-") {

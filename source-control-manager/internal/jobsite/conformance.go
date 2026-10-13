@@ -105,14 +105,15 @@ func (e *ConformanceEnv) OpenRequest(role string) OpenRequest {
 }
 
 type trackingSession struct {
-	name    string
-	session Session
+	name string
+	Session
+	closed bool
 }
 
 type trackingAdapter struct {
 	Adapter
 	mu       sync.Mutex
-	sessions []trackingSession
+	sessions []*trackingSession
 	counts   map[string]int
 }
 
@@ -132,8 +133,17 @@ func (t *trackingAdapter) Open(ctx context.Context, req OpenRequest) (Session, e
 	defer t.mu.Unlock()
 	t.counts[req.Role]++
 	name := fmt.Sprintf("%s-%d", req.Role, t.counts[req.Role])
-	t.sessions = append(t.sessions, trackingSession{name: name, session: s})
-	return s, nil
+	tracked := &trackingSession{name: name, Session: s}
+	t.sessions = append(t.sessions, tracked)
+	return tracked, nil
+}
+
+func (s *trackingSession) Close() error {
+	if s.closed {
+		return nil
+	}
+	s.closed = true
+	return s.Session.Close()
 }
 
 func aggregateAuditHead(heads map[string]string) string {
@@ -219,6 +229,7 @@ func verifySessionAudit(s Session) error {
 // This suite validates sandbox adapter behavior at the API boundary; this suite
 // alone is insufficient to enable autonomous execution until an integration-level
 // check exercises host/peer access from inside the Worker execution boundary.
+// Reports leave integration_boundary_verified and autonomous_execution false.
 func RunSandboxConformance(ctx context.Context, adapter Adapter, env *ConformanceEnv) *ConformanceReport {
 	report := &ConformanceReport{
 		ContractVersion:   ContractVersion,
@@ -248,18 +259,12 @@ func RunSandboxConformance(ctx context.Context, adapter Adapter, env *Conformanc
 		return report
 	}
 
-	report.AutonomousExecution = true
 	runChecks(ctx, report, tracker, env, sessionA, sessionB)
 
-	// Close Worker A, Worker B, and auxiliary sessions before finalizing the report.
-	if err := sessionA.Close(); err != nil {
-		report.add(CheckResult{ID: "SB-LIFE-003", Name: "Worker A session cleanup", Passed: false, Detail: err.Error()})
-	}
-	if err := sessionB.Close(); err != nil {
-		report.add(CheckResult{ID: "SB-LIFE-003", Name: "Worker B session cleanup", Passed: false, Detail: err.Error()})
-	}
+	// Close Worker A, Worker B, and auxiliary sessions exactly once before
+	// finalizing the report.
 	for _, ts := range tracker.sessions {
-		if err := ts.session.Close(); err != nil {
+		if err := ts.Close(); err != nil {
 			report.add(CheckResult{ID: "SB-LIFE-003", Name: "Session cleanup: " + ts.name, Passed: false, Detail: err.Error()})
 		}
 	}
@@ -267,10 +272,10 @@ func RunSandboxConformance(ctx context.Context, adapter Adapter, env *Conformanc
 	// Verify every session chain and required field, and report per-session heads and aggregate head.
 	report.AuditHeads = make(map[string]string)
 	for _, ts := range tracker.sessions {
-		if err := verifySessionAudit(ts.session); err != nil {
+		if err := verifySessionAudit(ts); err != nil {
 			report.add(CheckResult{ID: "SB-AUD-002", Name: "Session audit chain: " + ts.name, Passed: false, Detail: err.Error()})
 		}
-		events := ts.session.Audit()
+		events := ts.Audit()
 		if len(events) > 0 {
 			report.AuditHeads[ts.name] = events[len(events)-1].EventDigest
 		}
@@ -278,11 +283,15 @@ func RunSandboxConformance(ctx context.Context, adapter Adapter, env *Conformanc
 	report.AuditHead = aggregateAuditHead(report.AuditHeads)
 
 	report.Passed = report.allPassed()
+	report.IntegrationBoundaryVerified = false
+	report.AutonomousExecution = report.Passed && report.IntegrationBoundaryVerified
 	if !report.Passed {
 		report.AutonomousExecution = false
 		if report.FailClosedReason == "" {
 			report.FailClosedReason = "Conformance check failed; autonomous execution disabled."
 		}
+	} else {
+		report.FailClosedReason = "Integration-level Worker boundary checks have not run; autonomous execution disabled."
 	}
 	return report
 }
@@ -312,6 +321,27 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 	})
 	report.check("SB-FS-008", "Private Integration paths are denied", func() error {
 		return expectDenied(sessionA.WritePath(ctx, env.Export.Integration.Path, []byte("x"), ModeFile))
+	})
+	report.check("SB-FS-012", "Relative traversal paths are denied", func() error {
+		targets := []string{
+			filepath.Join(sessionB.Root(), currentImplPath),
+			env.Source.Root,
+			env.Export.Integration.Path,
+		}
+		for _, target := range targets {
+			relative, err := filepath.Rel(sessionA.Root(), target)
+			if err != nil {
+				return err
+			}
+			_, readErr := sessionA.ReadPath(ctx, relative)
+			if err := expectDenied(readErr); err != nil {
+				return fmt.Errorf("read %s: %w", relative, err)
+			}
+			if err := expectDenied(sessionA.WritePath(ctx, relative, []byte("x"), ModeFile)); err != nil {
+				return fmt.Errorf("write %s: %w", relative, err)
+			}
+		}
+		return nil
 	})
 	report.check("SB-FS-009", "Shared paths are read-only to Workers", func() error {
 		if _, err := sessionA.ReadPath(ctx, sharedDocPath); err != nil {
@@ -484,7 +514,7 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 				Path:        AllowedNetworkPath,
 			},
 		})
-		return expectDenied(err)
+		return expectNetworkDenial(sessionA, err, "network:unapproved-executable")
 	})
 	report.check("SB-NET-003", "Unapproved destinations are denied", func() error {
 		_, err := sessionA.Execute(ctx, ExecRequest{
@@ -497,7 +527,7 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 				Path:        AllowedNetworkPath,
 			},
 		})
-		return expectDenied(err)
+		return expectNetworkDenial(sessionA, err, "network:default-deny")
 	})
 	report.check("SB-NET-004", "Direct IP destinations are denied", func() error {
 		for _, dest := range []string{"127.0.0.1", "::1", "[::1]", "127.1"} {
@@ -511,7 +541,7 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 					Path:        AllowedNetworkPath,
 				},
 			})
-			if err := expectDenied(err); err != nil {
+			if err := expectNetworkDenial(sessionA, err, "network:ip-literal"); err != nil {
 				return fmt.Errorf("direct IP %q was not denied: %w", dest, err)
 			}
 		}
@@ -528,7 +558,7 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 				Path:        AllowedNetworkPath,
 			},
 		})
-		return expectDenied(err)
+		return expectNetworkDenial(sessionA, err, "network:dns-tunneling")
 	})
 	report.check("SB-NET-006", "Redirects are denied", func() error {
 		req := env.OpenRequest(RoleWorkerA)
@@ -555,7 +585,7 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 				Path:        "/v2/redirect",
 			},
 		})
-		return expectDenied(err)
+		return expectNetworkDenial(session, err, "network:redirect")
 	})
 	report.check("SB-NET-007", "Raw sockets are denied", func() error {
 		_, err := sessionA.Execute(ctx, ExecRequest{
@@ -568,7 +598,7 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 				Path:        AllowedNetworkPath,
 			},
 		})
-		return expectDenied(err)
+		return expectNetworkDenial(sessionA, err, "network:raw-socket")
 	})
 	report.check("SB-NET-008", "Alternate ports are denied", func() error {
 		_, err := sessionA.Execute(ctx, ExecRequest{
@@ -581,7 +611,7 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 				Path:        AllowedNetworkPath,
 			},
 		})
-		return expectDenied(err)
+		return expectNetworkDenial(sessionA, err, "network:alternate-port")
 	})
 	report.check("SB-NET-009", "TLS bypass is denied", func() error {
 		_, err := sessionA.Execute(ctx, ExecRequest{
@@ -594,7 +624,7 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 				Path:        AllowedNetworkPath,
 			},
 		})
-		return expectDenied(err)
+		return expectNetworkDenial(sessionA, err, "network:tls-bypass")
 	})
 	report.check("SB-NET-010", "Network is denied by default", func() error {
 		_, err := sessionA.Execute(ctx, ExecRequest{
@@ -607,7 +637,7 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 				Path:        AllowedNetworkPath,
 			},
 		})
-		return expectDenied(err)
+		return expectNetworkDenial(sessionA, err, "network:default-deny")
 	})
 
 	report.check("SB-CRED-001", "Broker token is absent from the sandbox environment", func() error {
@@ -1031,6 +1061,12 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 		}
 		return expectDenied(sessionA.WritePath(ctx, "/etc/passwd", []byte("x"), ModeFile))
 	})
+	report.check("SB-FC-004", "Projection role must match the session role", func() error {
+		request := env.OpenRequest(RoleWorkerA)
+		request.Projection = env.OpenRequest(RoleWorkerB).Projection
+		_, err := adapter.Open(ctx, request)
+		return expectDenied(err)
+	})
 }
 
 func auditEventContainsSentinel(ev SandboxAuditEvent, sentinel string) bool {
@@ -1116,6 +1152,21 @@ func expectDenied(err error) error {
 	}
 	if errorCode(err) != CodeSandboxDenied {
 		return fmt.Errorf("expected %s, got %v", CodeSandboxDenied, err)
+	}
+	return nil
+}
+
+func expectNetworkDenial(session Session, err error, target string) error {
+	if err := expectDenied(err); err != nil {
+		return err
+	}
+	events := session.Audit()
+	if len(events) == 0 {
+		return fmt.Errorf("network denial %q was not recorded in audit", target)
+	}
+	event := events[len(events)-1]
+	if event.EventType != EventSandboxNetwork || event.Decision != DecisionReject || event.Target != target {
+		return fmt.Errorf("expected network denial %q, got event %#v", target, event)
 	}
 	return nil
 }

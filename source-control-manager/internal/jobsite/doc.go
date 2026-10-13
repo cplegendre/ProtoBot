@@ -10,5 +10,6 @@
 // The reusable conformance suite validates adapter API behavior; this
 // suite alone is insufficient to enable autonomous execution until an
 // integration-level check exercises host/peer access from inside the
-// Worker execution boundary.
+// Worker execution boundary. Its reports therefore leave both
+// integration_boundary_verified and autonomous_execution false.
 package jobsite
