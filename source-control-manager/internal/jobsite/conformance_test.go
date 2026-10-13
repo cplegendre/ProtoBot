@@ -227,6 +227,10 @@ func TestGitArgValidation(t *testing.T) {
 		{"show", "HEAD:\\escaped"},
 		{"status", "/etc"},
 		{"remote", "add", "origin", "http://evil.com"},
+		{"log", "--pretty=format:%(trailers)"},
+		{"log", "--format=%x00"},
+		{"show", "--pretty=format:%(trailers:key=Signed-off-by)"},
+		{"show", "--format=%(trailers)"},
 	}
 	for _, args := range forbiddenCalls {
 		res, err := session.Git(context.Background(), args...)
