@@ -280,11 +280,12 @@ execution.
 ## Audit evidence
 
 v1 requires tamper evidence. Each session records a SHA-256 hash
-chain of private audit events. `EventDigest` covers the canonical
-JSON payload with `EventDigest` itself empty.
-`PreviousDigest` is the prior event's digest, or the SHA-256 of
-empty input for the first event. Reordering or altering a field
-invalidates the chain.
+chain of private audit events. `EventDigest` covers the payload encoded
+by Go's `encoding/json.Marshal` for `SandboxAuditEvent` in struct field
+order, with `EventDigest` omitted by its `omitempty` tag. Go's default
+HTML escaping is part of the v1 byte string. `PreviousDigest` is the
+prior event's digest, or the SHA-256 of empty input for the first event.
+Reordering or altering a field invalidates the chain.
 
 Every event carries contract version, backend name and version,
 projection policy version and digest, work-item identifier, role,
@@ -382,8 +383,9 @@ suite against this adapter.
 
 ## Conformance test matrix
 
-The suite is `RunSandboxConformance`. Downstream adapters call it
-with their `Adapter` and a `ConformanceEnv`. Each check records an
+The suite is `RunSandboxConformance`. A conformance runner in
+`source-control-manager` calls it with an `Adapter` and a
+`ConformanceEnv`. Each check records an
 identifier, name, pass/fail, and detail. A full API pass sets `passed`
 to true, `integration_boundary_verified` to false, and
 `autonomous_execution` to false. The sandbox conformance suite exercises
@@ -478,7 +480,7 @@ They are not ProtoBot control-plane dependencies.
 | Git isolation | Same projection properties, enforced inside the agent process. | Git runs only in the copied workspace; fetch/remote denied. |
 | Network policy | Per-binary OPA/Rego and L7 inspection via TLS interception. | In-process broker with an allowlisted loopback registry. |
 | Credential broker | Inference/routing proxy injects tokens at the network boundary. | Loopback broker injects and strips a sentinel token. |
-| Lifecycle | OpenShell session teardown; Fullsend post-script outside the sandbox. | Cancel/Close kill processes and `RemoveAll` the workspace. |
+| Lifecycle | OpenShell session teardown; Fullsend post-script outside the sandbox. | On Unix, Cancel/Close kill process trees and `RemoveAll` the workspace; other platforms fail closed. |
 | Resource limits | cgroup / microVM limits. | In-process counters and deadlines. |
 | Audit chain | Backend-specific event log mapped onto the v1 schema and hash chain. | In-memory hash chain for the fixture. |
 | Fail-closed | Failed OpenShell acceptance disables autonomous execution. | `FailClosedAdapter` and capability checks. |

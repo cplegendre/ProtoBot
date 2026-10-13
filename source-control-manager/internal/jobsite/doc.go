@@ -3,7 +3,7 @@
 // repositories from a source commit and a version-1 projection policy,
 // validates PatchBundle v1 imports, and implements the
 // jobsite-sandbox/v1 contract with a local test adapter and reusable
-// conformance suite. It does not extend the Drafting Table Source
+// in-module conformance suite. It does not extend the Drafting Table Source
 // Control Manager face. The integration loop is issue #69; Fullsend
 // mapping is issue #172.
 //
