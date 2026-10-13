@@ -1194,7 +1194,7 @@ func checkSubcommandFlag(subcmd, flag string) error {
 		case "-n", "--oneline", "--stat", "--graph", "--decorate", "--no-decorate", "-p", "-u", "--patch":
 			return nil
 		}
-		if strings.HasPrefix(flag, "--max-count=") || strings.HasPrefix(flag, "--format=") || strings.HasPrefix(flag, "--pretty=") {
+		if strings.HasPrefix(flag, "--max-count=") || isAllowedGitFormatFlag(flag) {
 			return nil
 		}
 		if len(flag) > 1 && flag[0] == '-' {
@@ -1207,7 +1207,7 @@ func checkSubcommandFlag(subcmd, flag string) error {
 		case "-s", "--stat", "--oneline", "-p", "-u", "--patch":
 			return nil
 		}
-		if strings.HasPrefix(flag, "--format=") || strings.HasPrefix(flag, "--pretty=") {
+		if isAllowedGitFormatFlag(flag) {
 			return nil
 		}
 	case "diff":
@@ -1217,6 +1217,22 @@ func checkSubcommandFlag(subcmd, flag string) error {
 		}
 	}
 	return fmt.Errorf("git flag %q is forbidden in the sandbox", flag)
+}
+
+func isAllowedGitFormatFlag(flag string) bool {
+	value, ok := strings.CutPrefix(flag, "--pretty=")
+	if !ok {
+		value, ok = strings.CutPrefix(flag, "--format=")
+	}
+	if !ok {
+		return false
+	}
+	switch value {
+	case "oneline", "short", "medium", "full", "fuller", "raw", "email", "mboxrd", "reference":
+		return true
+	default:
+		return false
+	}
 }
 
 func flagTakesArg(subcmd, flag string) bool {
