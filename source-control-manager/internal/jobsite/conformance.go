@@ -224,8 +224,8 @@ func verifySessionAudit(s Session) error {
 }
 
 // RunSandboxConformance executes the backend-neutral v1 acceptance suite.
-// Downstream adapters (#172, #219) call this function; it does not require
-// testing.T so a conformance runner can invoke it.
+// A conformance runner in this module calls it; it does not require
+// testing.T so a command-line runner can invoke it.
 // This suite validates sandbox adapter behavior at the API boundary; this suite
 // alone is insufficient to enable autonomous execution until an integration-level
 // check exercises host/peer access from inside the Worker execution boundary.
@@ -255,19 +255,14 @@ func RunSandboxConformance(ctx context.Context, adapter Adapter, env *Conformanc
 	}
 	sessionB, err := tracker.Open(ctx, env.OpenRequest(RoleWorkerB))
 	if err != nil {
+		closeTrackedSessions(report, tracker)
 		report.failClosed("SB-FC-001", err)
 		return report
 	}
 
 	runChecks(ctx, report, tracker, env, sessionA, sessionB)
 
-	// Close Worker A, Worker B, and auxiliary sessions exactly once before
-	// finalizing the report.
-	for _, ts := range tracker.sessions {
-		if err := ts.Close(); err != nil {
-			report.add(CheckResult{ID: "SB-LIFE-003", Name: "Session cleanup: " + ts.name, Passed: false, Detail: err.Error()})
-		}
-	}
+	closeTrackedSessions(report, tracker)
 
 	// Verify every session chain and required field, and report per-session heads and aggregate head.
 	report.AuditHeads = make(map[string]string)
@@ -294,6 +289,14 @@ func RunSandboxConformance(ctx context.Context, adapter Adapter, env *Conformanc
 		report.FailClosedReason = "Integration-level Worker boundary checks have not run; autonomous execution disabled."
 	}
 	return report
+}
+
+func closeTrackedSessions(report *ConformanceReport, tracker *trackingAdapter) {
+	for _, ts := range tracker.sessions {
+		if err := ts.Close(); err != nil {
+			report.add(CheckResult{ID: "SB-LIFE-003", Name: "Session cleanup: " + ts.name, Passed: false, Detail: err.Error()})
+		}
+	}
 }
 
 func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, env *ConformanceEnv, sessionA, sessionB Session) {

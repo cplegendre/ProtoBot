@@ -40,11 +40,19 @@ func (a *LocalAdapter) Identity() BackendIdentity {
 	return BackendIdentity{Name: LocalBackendName, Version: LocalBackendVersion}
 }
 
-// Capabilities reports every v1 capability as supported. The local adapter
-// enforces the contract in-process on every GOOS the fixture already runs
-// on; it does not skip checks.
+// Capabilities reports the v1 capabilities supported on the current
+// platform. Process-tree cleanup is Unix-only; other platforms fail closed.
 func (a *LocalAdapter) Capabilities() []Capability {
-	return requiredCapabilitySet(true, "")
+	capabilities := requiredCapabilitySet(true, "")
+	if !supportsProcessTreeCleanup() {
+		for i := range capabilities {
+			if capabilities[i].Name == CapLifecycleCleanup {
+				capabilities[i].Supported = false
+				capabilities[i].Detail = "The local adapter terminates process trees only on Unix platforms."
+			}
+		}
+	}
+	return capabilities
 }
 
 // Open copies the role projection into an ephemeral workspace and starts a
@@ -378,9 +386,9 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 	gitCtx, gitCancel := context.WithTimeout(s.ctx, gitx.Timeout)
 	defer gitCancel()
 	cmd := s.repo.runner.RawCommandContext(gitCtx, cleanArgs...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	output := newMemoryLimitedOutput(s.limitMemory)
+	cmd.Stdout = output.stdoutWriter()
+	cmd.Stderr = output.stderrWriter()
 	cmd.Stdin = bytes.NewReader(nil)
 	if err := cmd.Start(); err != nil {
 		s.mu.Unlock()
@@ -400,8 +408,14 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 	}()
 	var waitErr error
 	var callerCancelled bool
+	var memoryExceeded bool
 	select {
 	case waitErr = <-done:
+		memoryExceeded = output.exceeded()
+	case <-output.exceededChannel():
+		killCmdProcess(cmd)
+		<-done
+		memoryExceeded = true
 	case <-ctx.Done():
 		killCmdProcess(cmd)
 		<-done
@@ -440,10 +454,10 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 			return ExecResult{}, fmt.Errorf("git wait: %w", waitErr)
 		}
 	}
-	if int64(stdout.Len()+stderr.Len()) > s.limitMemory {
+	if memoryExceeded {
 		return ExecResult{Denied: true, Status: -1}, s.limitLocked("memory", fmt.Sprintf("%d", s.limitMemory), "Memory limit exceeded.")
 	}
-	out := ExecResult{Status: status, Stdout: stdout.Bytes(), Stderr: stderr.Bytes()}
+	out := ExecResult{Status: status, Stdout: output.stdoutBytes(), Stderr: output.stderrBytes()}
 	if containsSentinelBytes(out.Stdout, out.Stderr) {
 		return s.denyLocked(EventSandboxGit, strings.Join(args, " "), "Git output contained a credential sentinel.")
 	}
@@ -453,6 +467,72 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 	}
 	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxGit, Decision: decision, Action: args[0], Target: strings.Join(args, " ")})
 	return out, nil
+}
+
+type memoryLimitedOutput struct {
+	mu            sync.Mutex
+	stdout        bytes.Buffer
+	stderr        bytes.Buffer
+	total         int64
+	limit         int64
+	limitExceeded bool
+	exceededClose chan struct{}
+}
+
+func newMemoryLimitedOutput(limit int64) *memoryLimitedOutput {
+	return &memoryLimitedOutput{limit: limit, exceededClose: make(chan struct{})}
+}
+
+func (o *memoryLimitedOutput) stdoutWriter() io.Writer {
+	return &memoryLimitedWriter{output: o, buffer: &o.stdout}
+}
+
+func (o *memoryLimitedOutput) stderrWriter() io.Writer {
+	return &memoryLimitedWriter{output: o, buffer: &o.stderr}
+}
+
+func (o *memoryLimitedOutput) exceeded() bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.limitExceeded
+}
+
+func (o *memoryLimitedOutput) exceededChannel() <-chan struct{} {
+	return o.exceededClose
+}
+
+func (o *memoryLimitedOutput) stdoutBytes() []byte {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]byte(nil), o.stdout.Bytes()...)
+}
+
+func (o *memoryLimitedOutput) stderrBytes() []byte {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]byte(nil), o.stderr.Bytes()...)
+}
+
+type memoryLimitedWriter struct {
+	output *memoryLimitedOutput
+	buffer *bytes.Buffer
+}
+
+func (w *memoryLimitedWriter) Write(data []byte) (int, error) {
+	w.output.mu.Lock()
+	defer w.output.mu.Unlock()
+	if w.output.limitExceeded || w.output.total+int64(len(data)) > w.output.limit {
+		if !w.output.limitExceeded {
+			w.output.limitExceeded = true
+			close(w.output.exceededClose)
+		}
+		return 0, errors.New("sandbox memory limit exceeded")
+	}
+	written, err := w.buffer.Write(data)
+	if err == nil {
+		w.output.total += int64(written)
+	}
+	return written, err
 }
 
 func (s *localSession) CollectPatch(ctx context.Context) (PatchBundle, error) {

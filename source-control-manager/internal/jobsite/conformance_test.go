@@ -90,6 +90,45 @@ func TestConformanceClosesEachSessionOnce(t *testing.T) {
 	}
 }
 
+func TestConformanceClosesSessionsWhenSecondOpenFails(t *testing.T) {
+	env := NewConformanceEnv(t)
+	closed := false
+	adapter := failSecondOpenAdapter{Adapter: NewLocalAdapter(), closed: &closed}
+	report := RunSandboxConformance(context.Background(), adapter, env)
+	if report.Passed {
+		t.Fatal("second Open failure should fail the conformance report")
+	}
+	if !closed {
+		t.Fatal("first session was not closed after second Open failed")
+	}
+}
+
+type failSecondOpenAdapter struct {
+	Adapter
+	closed *bool
+}
+
+func (a failSecondOpenAdapter) Open(ctx context.Context, request OpenRequest) (Session, error) {
+	if request.Role == RoleWorkerB {
+		return nil, fail(CodeSandboxFailClosed, "simulated second Open failure")
+	}
+	session, err := a.Adapter.Open(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	return &closeRecordingSession{Session: session, closed: a.closed}, nil
+}
+
+type closeRecordingSession struct {
+	Session
+	closed *bool
+}
+
+func (s *closeRecordingSession) Close() error {
+	*s.closed = true
+	return s.Session.Close()
+}
+
 type closeOnceAdapter struct {
 	Adapter
 }
@@ -127,6 +166,69 @@ func TestUnsupportedPlatformFailsClosed(t *testing.T) {
 	}
 	if !strings.Contains(report.FailClosedReason, "autonomous execution disabled") {
 		t.Fatalf("reason = %q", report.FailClosedReason)
+	}
+}
+
+func TestAuditEventGoldenPayloadAndDigest(t *testing.T) {
+	event := SandboxAuditEvent{
+		Sequence:        1,
+		EventType:       EventSandboxOpen,
+		ContractVersion: ContractVersion,
+		BackendName:     LocalBackendName,
+		BackendVersion:  LocalBackendVersion,
+		PolicyVersion:   1,
+		PolicyDigest:    "sha256:policy",
+		Decision:        DecisionAccept,
+		WorkItem:        "work-item",
+		Role:            RoleWorkerA,
+		TraceID:         "trace-id",
+		Cycle:           1,
+		Action:          "open",
+		Target:          "worker<&>",
+		PreviousDigest:  emptyDigest(),
+	}
+	const wantPayload = `{"sequence":1,"event_type":"sandbox.open","contract_version":"jobsite-sandbox/v1","backend_name":"local-test-adapter","backend_version":"jobsite-sandbox/v1","policy_version":1,"policy_digest":"sha256:policy","decision":"accept","work_item":"work-item","role":"worker-a","trace_id":"trace-id","cycle":1,"action":"open","target":"worker\u003c\u0026\u003e","previous_digest":"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}`
+	const wantDigest = "sha256:ea9df8a30df72dbf3b74140d7539a59284daa89a9fdfe878ff28f0201dce155b"
+
+	payload, err := marshalSandboxAuditPayload(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(payload) != wantPayload {
+		t.Fatalf("payload = %s\nwant %s", payload, wantPayload)
+	}
+	digest, err := digestSandboxEvent(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if digest != wantDigest {
+		t.Fatalf("digest = %s, want %s", digest, wantDigest)
+	}
+}
+
+func TestMemoryLimitedOutputHardCap(t *testing.T) {
+	output := newMemoryLimitedOutput(4)
+	if _, err := output.stdoutWriter().Write([]byte("abcd")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-output.exceededChannel():
+		t.Fatal("output marked exceeded at the limit")
+	default:
+	}
+	if _, err := output.stderrWriter().Write([]byte("x")); err == nil {
+		t.Fatal("write beyond memory limit succeeded")
+	}
+	select {
+	case <-output.exceededChannel():
+	default:
+		t.Fatal("memory-limit channel was not closed")
+	}
+	if got := len(output.stdoutBytes()); got != 4 {
+		t.Fatalf("retained stdout = %d bytes, want 4", got)
+	}
+	if got := len(output.stderrBytes()); got != 0 {
+		t.Fatalf("retained stderr = %d bytes, want 0", got)
 	}
 }
 

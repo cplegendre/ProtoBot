@@ -190,9 +190,10 @@ type Session interface {
 }
 
 // SandboxAuditEvent is one tamper-evident private audit record. v1 requires
-// a SHA-256 hash chain: EventDigest covers the canonical payload with
-// EventDigest itself empty, and PreviousDigest is the prior EventDigest
-// (or the zero digest for the first event).
+// a SHA-256 hash chain. EventDigest covers the payload produced by Go's
+// encoding/json.Marshal for this struct in field order, with EventDigest
+// omitted by its omitempty tag. PreviousDigest is the prior EventDigest,
+// or SHA-256 of empty input for the first event.
 type SandboxAuditEvent struct {
 	Sequence         int    `json:"sequence"`
 	EventType        string `json:"event_type"`
@@ -253,9 +254,7 @@ func VerifyAuditChain(events []SandboxAuditEvent) error {
 		if ev.PreviousDigest != prev {
 			return fmt.Errorf("audit chain break at sequence %d", ev.Sequence)
 		}
-		clone := ev
-		clone.EventDigest = ""
-		payload, err := json.Marshal(clone)
+		payload, err := marshalSandboxAuditPayload(ev)
 		if err != nil {
 			return err
 		}
@@ -276,12 +275,16 @@ func emptyDigest() string {
 }
 
 func digestSandboxEvent(ev SandboxAuditEvent) (string, error) {
-	ev.EventDigest = ""
-	payload, err := json.Marshal(ev)
+	payload, err := marshalSandboxAuditPayload(ev)
 	if err != nil {
 		return "", err
 	}
 	return digestBytes(payload), nil
+}
+
+func marshalSandboxAuditPayload(ev SandboxAuditEvent) ([]byte, error) {
+	ev.EventDigest = ""
+	return json.Marshal(ev)
 }
 
 func requiredCapabilitySet(supported bool, detail string) []Capability {

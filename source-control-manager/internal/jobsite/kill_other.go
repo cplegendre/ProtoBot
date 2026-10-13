@@ -10,3 +10,7 @@ func killCmdProcess(cmd *exec.Cmd) {
 	}
 	_ = cmd.Process.Kill()
 }
+
+func supportsProcessTreeCleanup() bool {
+	return false
+}

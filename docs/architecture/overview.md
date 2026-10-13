@@ -271,7 +271,7 @@ not on Fullsend or OpenShell APIs
 ([Job Site Sandbox Contract](jobsite-sandbox.md)). Fullsend does not
 replace ProtoBot's change-set/WMS control plane, role-projected
 repositories, dual-worker integration, Triage sanitizer, or
-conformance evidence. A backend that cannot pass any check of the
+conformance evidence. A backend that fails any check of the
 contract cannot run
 autonomous work.
 

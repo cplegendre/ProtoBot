@@ -2047,7 +2047,7 @@ The local test adapter and sandbox conformance suite live in
 `source-control-manager/internal/jobsite`. Prompts are not a security
 boundary. The sandbox is the primary enforcement mechanism for
 safeguards. Fullsend/OpenShell, direct OpenShell, and the portable
-profile must pass the same sandbox conformance suite and the #172
+profile must pass the same contract and the #172
 integration-level suite for every supported compute backend:
 
 - **Execution and filesystem:** no host, peer Worker, canonical repo, or
