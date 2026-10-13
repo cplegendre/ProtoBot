@@ -513,7 +513,7 @@ interactive and autonomous work. The Job Site's internal
 components, worker topology, execution backends, and sandbox
 architecture are detailed in the [System
 Components](architecture/components.md#job-site) design document.
-The backend-neutral sandbox acceptance suite is the
+The backend-neutral sandbox conformance suite is the
 [Job Site Sandbox Contract](architecture/jobsite-sandbox.md). Worker
 topology and backend internals remain out of scope for this Sketch.
 
@@ -1034,7 +1034,7 @@ that contract.
 - [Drafting Table WMS Integration](architecture/drafting-table-wms.md) —
   Backend-neutral WMS operations and blocked-work resolution
 - [Job Site Sandbox Contract](architecture/jobsite-sandbox.md) —
-  Sandbox acceptance suite
+  Sandbox conformance suite
 - [Git and Project-Repository
   Integration](architecture/git-integration.md) — Project
   identification, branches, commits, PR preparation, and approved

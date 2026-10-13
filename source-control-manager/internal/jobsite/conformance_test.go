@@ -32,8 +32,14 @@ func TestLocalAdapterConformance(t *testing.T) {
 		}
 		t.Fatalf("local adapter conformance failed")
 	}
-	if !report.AutonomousExecution {
-		t.Fatalf("local adapter disabled autonomous execution: %s", report.FailClosedReason)
+	if report.AutonomousExecution {
+		t.Fatal("API conformance must not enable autonomous execution")
+	}
+	if report.IntegrationBoundaryVerified {
+		t.Fatal("API conformance cannot verify the integration boundary")
+	}
+	if report.FailClosedReason == "" {
+		t.Fatal("missing integration-boundary fail-closed reason")
 	}
 	if report.ContractVersion != ContractVersion {
 		t.Fatalf("contract version = %s", report.ContractVersion)
@@ -73,6 +79,42 @@ func TestFailClosedAdapterDisablesAutonomousExecution(t *testing.T) {
 	}
 }
 
+func TestConformanceClosesEachSessionOnce(t *testing.T) {
+	env := NewConformanceEnv(t)
+	report := RunSandboxConformance(context.Background(), closeOnceAdapter{Adapter: NewLocalAdapter()}, env)
+	if !report.Passed {
+		for _, check := range report.FailedChecks() {
+			t.Errorf("%s %s: %s", check.ID, check.Name, check.Detail)
+		}
+		t.Fatal("close-once adapter conformance failed")
+	}
+}
+
+type closeOnceAdapter struct {
+	Adapter
+}
+
+func (a closeOnceAdapter) Open(ctx context.Context, request OpenRequest) (Session, error) {
+	session, err := a.Adapter.Open(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	return &closeOnceSession{Session: session}, nil
+}
+
+type closeOnceSession struct {
+	Session
+	closed bool
+}
+
+func (s *closeOnceSession) Close() error {
+	if s.closed {
+		return errors.New("session closed more than once")
+	}
+	s.closed = true
+	return s.Session.Close()
+}
+
 func TestUnsupportedPlatformFailsClosed(t *testing.T) {
 	env := NewConformanceEnv(t)
 	adapter := FailClosedAdapter{Inner: NewLocalAdapter(), Platform: true}
@@ -100,6 +142,16 @@ func TestLocalAdapterOpensWithoutCluster(t *testing.T) {
 	}
 	if session.Root() == env.Export.WorkerA.Path {
 		t.Fatal("session reused the export working tree")
+	}
+}
+
+func TestOpenRejectsProjectionRoleMismatch(t *testing.T) {
+	env := NewConformanceEnv(t)
+	request := env.OpenRequest(RoleWorkerA)
+	request.Projection = env.OpenRequest(RoleWorkerB).Projection
+	_, err := NewLocalAdapter().Open(context.Background(), request)
+	if errorCode(err) != CodeSandboxDenied {
+		t.Fatalf("expected %s for projection role mismatch, got %v", CodeSandboxDenied, err)
 	}
 }
 
@@ -635,6 +687,35 @@ func TestSentinelInNetworkDestinationAndPathAbsentFromAudit(t *testing.T) {
 
 	sentinelDest := "secret-dest-sentinel.example.invalid"
 	sentinelPath := "/v1/secret-path-sentinel"
+
+	_, err = session.Execute(ctx, ExecRequest{
+		Executable: ApprovedFetchName,
+		Digest:     ApprovedFetchDigest,
+		Network: &NetworkRequest{
+			Destination: AllowedDestination,
+			Protocol:    AllowedProtocol,
+			Method:      AllowedMethod,
+			Path:        AllowedNetworkPath,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundAcceptedNetwork := false
+	for _, event := range session.Audit() {
+		if event.EventType != EventSandboxNetwork || event.Decision != DecisionAccept {
+			continue
+		}
+		foundAcceptedNetwork = true
+		if !strings.HasPrefix(event.Target, "network-rule:") ||
+			strings.Contains(event.Target, AllowedDestination) ||
+			strings.Contains(event.Target, AllowedNetworkPath) {
+			t.Fatalf("accepted network audit target leaked rule values: %q", event.Target)
+		}
+	}
+	if !foundAcceptedNetwork {
+		t.Fatal("missing accepted network audit event")
+	}
 
 	// Call with sentinel destination
 	_, _ = session.Execute(ctx, ExecRequest{

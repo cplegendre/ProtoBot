@@ -581,7 +581,7 @@ implementations) succeed at much higher rates than those without.
 - [System Components](components.md) — Component architecture,
   interfaces, and cross-cutting concerns
 - [Job Site Sandbox Contract](jobsite-sandbox.md) — Backend-neutral
-  execution and sandbox acceptance suite that Fullsend and OpenShell
+  sandbox conformance suite that Fullsend and OpenShell
   must pass
 - [Git and Project-Repository Integration](git-integration.md) —
   Project identification, branches, commits, PR preparation, and

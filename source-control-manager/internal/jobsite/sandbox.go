@@ -231,23 +231,24 @@ type CheckResult struct {
 // a backend must emit. Downstream issues invoke the same suite and compare
 // this report; they do not trust a product name.
 type ConformanceReport struct {
-	ContractVersion     string            `json:"contract_version"`
-	Backend             BackendIdentity   `json:"backend"`
-	PolicyVersion       int               `json:"policy_version"`
-	PolicyDigest        string            `json:"policy_digest"`
-	ExecutableDigests   map[string]string `json:"executable_digests"`
-	ResourceLimits      ResourceLimits    `json:"resource_limits"`
-	Checks              []CheckResult     `json:"checks"`
-	Passed              bool              `json:"passed"`
-	AutonomousExecution bool              `json:"autonomous_execution"`
-	FailClosedReason    string            `json:"fail_closed_reason,omitempty"`
-	AuditHead           string            `json:"audit_head,omitempty"`
-	AuditHeads          map[string]string `json:"audit_heads,omitempty"`
+	ContractVersion             string            `json:"contract_version"`
+	Backend                     BackendIdentity   `json:"backend"`
+	PolicyVersion               int               `json:"policy_version"`
+	PolicyDigest                string            `json:"policy_digest"`
+	ExecutableDigests           map[string]string `json:"executable_digests"`
+	ResourceLimits              ResourceLimits    `json:"resource_limits"`
+	Checks                      []CheckResult     `json:"checks"`
+	Passed                      bool              `json:"passed"`
+	IntegrationBoundaryVerified bool              `json:"integration_boundary_verified"`
+	AutonomousExecution         bool              `json:"autonomous_execution"`
+	FailClosedReason            string            `json:"fail_closed_reason,omitempty"`
+	AuditHead                   string            `json:"audit_head,omitempty"`
+	AuditHeads                  map[string]string `json:"audit_heads,omitempty"`
 }
 
 // VerifyAuditChain reports whether events form a valid v1 hash chain.
 func VerifyAuditChain(events []SandboxAuditEvent) error {
-	prev := zeroDigest()
+	prev := emptyDigest()
 	for i, ev := range events {
 		if ev.PreviousDigest != prev {
 			return fmt.Errorf("audit chain break at sequence %d", ev.Sequence)
@@ -269,7 +270,7 @@ func VerifyAuditChain(events []SandboxAuditEvent) error {
 	return nil
 }
 
-func zeroDigest() string {
+func emptyDigest() string {
 	sum := sha256.Sum256(nil)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }

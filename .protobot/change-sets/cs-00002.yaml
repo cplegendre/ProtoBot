@@ -1,6 +1,6 @@
 # managed by ears-manager; do not edit by hand
 id: CS-00002
-base_commit: 6fa494f9d501d020409f4fdf1d6be72784ca7c33
+base_commit: 3207b9370db9a2329ecd4280c008645e57da74d2
 intent: Register Job Site sandbox contract in Architecture
 operations: []
 artifact_operations:
@@ -8,5 +8,5 @@ artifact_operations:
       artifact_id: architecture
 affected_interfaces: []
 implementation_required: true
-impact_assessment_base_commit: 6fa494f9d501d020409f4fdf1d6be72784ca7c33
+impact_assessment_base_commit: 3207b9370db9a2329ecd4280c008645e57da74d2
 created: "2026-10-12T14:00:00Z"
