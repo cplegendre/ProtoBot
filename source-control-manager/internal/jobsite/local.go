@@ -396,17 +396,16 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 		return ExecResult{}, err
 	}
 	tp := &trackedProcess{Cmd: cmd, done: make(chan struct{})}
-	s.cmds = append(s.cmds, tp)
-	s.argvLog = append(s.argvLog, append([]string(nil), cmd.Args...))
-	sessionCtx := s.ctx
-	s.mu.Unlock()
-
 	start := time.Now()
 	done := make(chan error, 1)
 	go func() {
 		done <- cmd.Wait()
 		close(tp.done)
 	}()
+	s.cmds = append(s.cmds, tp)
+	s.argvLog = append(s.argvLog, append([]string(nil), cmd.Args...))
+	sessionCtx := s.ctx
+	s.mu.Unlock()
 	var waitErr error
 	var callerCancelled bool
 	var memoryExceeded bool
@@ -660,15 +659,15 @@ func (s *localSession) sleepLocked(ctx context.Context, req ExecRequest) (ExecRe
 		return ExecResult{}, err
 	}
 	tp := &trackedProcess{Cmd: cmd, done: make(chan struct{})}
-	s.cmds = append(s.cmds, tp)
-	s.argvLog = append(s.argvLog, append([]string(nil), cmd.Args...))
-	sessionCtx := s.ctx
-	s.mu.Unlock()
 	done := make(chan error, 1)
 	go func() {
 		done <- cmd.Wait()
 		close(tp.done)
 	}()
+	s.cmds = append(s.cmds, tp)
+	s.argvLog = append(s.argvLog, append([]string(nil), cmd.Args...))
+	sessionCtx := s.ctx
+	s.mu.Unlock()
 	var waitErr error
 	var callerCancelled bool
 	select {
@@ -871,14 +870,7 @@ func (s *localSession) networkLocked(ctx context.Context, req ExecRequest) (Exec
 	}
 
 	if doErr != nil {
-		if errors.Is(doErr, errRedirectDenied) || errors.Is(errors.Unwrap(doErr), errRedirectDenied) {
-			return s.denyLocked(EventSandboxNetwork, "network:redirect", "Network redirects are denied.")
-		}
-		var urlErr interface{ Unwrap() error }
-		if errors.As(doErr, &urlErr) && errors.Is(urlErr.Unwrap(), errRedirectDenied) {
-			return s.denyLocked(EventSandboxNetwork, "network:redirect", "Network redirects are denied.")
-		}
-		if strings.Contains(doErr.Error(), errRedirectDenied.Error()) {
+		if errors.Is(doErr, errRedirectDenied) || strings.Contains(doErr.Error(), errRedirectDenied.Error()) {
 			return s.denyLocked(EventSandboxNetwork, "network:redirect", "Network redirects are denied.")
 		}
 		return ExecResult{}, doErr

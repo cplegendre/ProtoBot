@@ -223,7 +223,7 @@ func verifySessionAudit(s Session) error {
 	return nil
 }
 
-// RunSandboxConformance executes the backend-neutral v1 acceptance suite.
+// RunSandboxConformance executes the backend-neutral v1 sandbox conformance suite.
 // A conformance runner in this module calls it; it does not require
 // testing.T so a command-line runner can invoke it.
 // This suite validates sandbox adapter behavior at the API boundary; this suite
@@ -922,6 +922,9 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 			req.Limits.CPU = 20 * time.Millisecond
 		}, func(session Session) error {
 			res, err := session.Execute(ctx, ExecRequest{Executable: BurnName, Digest: BurnDigest, Args: []string{"30ms"}})
+			if errorCode(err) == CodeSandboxLimit {
+				return nil
+			}
 			if err != nil {
 				return fmt.Errorf("first command failed: %w", err)
 			}
@@ -929,7 +932,10 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 				return fmt.Errorf("first command status = %d", res.Status)
 			}
 			_, err = session.Execute(ctx, ExecRequest{Executable: BurnName, Digest: BurnDigest, Args: []string{"0"}})
-			return expectCode(err, CodeSandboxLimit)
+			if err := expectCode(err, CodeSandboxLimit); err != nil {
+				return err
+			}
+			return nil
 		}, "cpu")
 	})
 	report.check("SB-LIM-003", "Memory limit is enforced and recorded", func() error {

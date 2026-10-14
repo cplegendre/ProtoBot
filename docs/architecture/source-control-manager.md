@@ -1978,7 +1978,7 @@ these checks, and the transcript has no record for them.
 - [Drafting Table WMS Integration](drafting-table-wms.md) — The model
   for a governed boundary with an operation matrix.
 - [Job Site Sandbox Contract](jobsite-sandbox.md) — Backend-neutral
-  execution seam hosted beside this module's Job Site fixture; it does
+  sandbox adapter seam hosted beside this module's Job Site fixture; it does
   not extend the Drafting Table face.
 - [Validation Rules](validation-rules.md) — The trusted authorization
   context the hosted face reuses.

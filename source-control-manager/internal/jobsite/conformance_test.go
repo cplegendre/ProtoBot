@@ -457,6 +457,77 @@ func TestInFlightCommandAcrossClose(t *testing.T) {
 	}
 }
 
+func TestImmediateCloseDuringExecute(t *testing.T) {
+	env := NewConformanceEnv(t)
+	session, err := NewLocalAdapter().Open(context.Background(), env.OpenRequest(RoleWorkerA))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := session.Execute(context.Background(), ExecRequest{
+			Executable: "sleep",
+			Args:       []string{"30"},
+		})
+		done <- err
+	}()
+
+	if err := session.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if errorCode(err) != CodeSandboxCancelled {
+			t.Fatalf("expected %s after immediate Close(), got %v", CodeSandboxCancelled, err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("immediate Close() deadlocked with Execute()")
+	}
+}
+
+func TestConformanceAcceptsCPULimitOnFirstExecution(t *testing.T) {
+	env := NewConformanceEnv(t)
+	report := RunSandboxConformance(context.Background(), firstCPULimitAdapter{Adapter: NewLocalAdapter()}, env)
+	if !report.Passed {
+		for _, check := range report.FailedChecks() {
+			t.Errorf("%s %s: %s", check.ID, check.Name, check.Detail)
+		}
+		t.Fatal("conformance should accept a CPU limit on the first execution")
+	}
+}
+
+type firstCPULimitAdapter struct {
+	Adapter
+}
+
+func (a firstCPULimitAdapter) Open(ctx context.Context, request OpenRequest) (Session, error) {
+	session, err := a.Adapter.Open(ctx, request)
+	if err != nil {
+		return nil, err
+	}
+	local, ok := session.(*localSession)
+	if !ok {
+		return nil, fail(CodeSandboxFailClosed, "test requires the local session")
+	}
+	return &firstCPULimitSession{localSession: local}, nil
+}
+
+type firstCPULimitSession struct {
+	*localSession
+	limited bool
+}
+
+func (s *firstCPULimitSession) Execute(ctx context.Context, request ExecRequest) (ExecResult, error) {
+	if request.Executable == BurnName && !s.limited {
+		s.limited = true
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return ExecResult{Denied: true, Status: -1}, s.limitLocked("cpu", "20ms", "CPU limit exceeded.")
+	}
+	return s.localSession.Execute(ctx, request)
+}
+
 func TestOpenShortDeadlineDoesNotRecordWallClockLimit(t *testing.T) {
 	env := NewConformanceEnv(t)
 	shortCtx, shortCancel := context.WithTimeout(context.Background(), 10*time.Millisecond)

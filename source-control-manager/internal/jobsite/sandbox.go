@@ -296,8 +296,8 @@ func requiredCapabilitySet(supported bool, detail string) []Capability {
 
 func missingRequiredCapabilities(caps []Capability) []string {
 	have := map[string]bool{}
-	for _, cap := range caps {
-		have[cap.Name] = cap.Supported
+	for _, capability := range caps {
+		have[capability.Name] = capability.Supported
 	}
 	var missing []string
 	for _, name := range RequiredCapabilities {

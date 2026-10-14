@@ -1279,18 +1279,19 @@ full DAG visible to either Worker.
 #### Isolation acceptance tests
 
 Every supported sandbox/backend must pass the sandbox conformance suite in the
-[Job Site Sandbox Contract](jobsite-sandbox.md), including negative
-tests proving that each Worker cannot:
+[Job Site Sandbox Contract](jobsite-sandbox.md) and the #172
+integration-level suite. The integration-level suite proves that each Worker
+cannot:
 
 - enumerate the other Worker or integration repository's refs;
 - read a known forbidden commit with `git cat-file` or recover it as an
   unreachable/reflog object;
 - read forbidden current or historical paths;
 - use a remote, credential, Git alternate, shared object cache, or
-  network endpoint to fetch the canonical or peer repository; or
-- submit a patch outside its role's allowlisted paths.
+  network endpoint to fetch the canonical or peer repository.
 
-These tests run for both the initial project and later work items, so
+The Patch/Ownership Validator rejects patches outside a role's allowlisted
+paths. These tests run for both the initial project and later work items, so
 previously merged implementation and test artifacts remain separated.
 
 #### Triage and baseline feedback contract (decided)

@@ -90,7 +90,7 @@ This contract does not:
 
 | Actor or component | Sandbox responsibility | May it weaken policy? |
 | --- | --- | --- |
-| Job Site control plane | Select a backend, open sessions against role projections, and refuse autonomous execution when the API suite fails or integration-boundary verification is not true. | No. |
+| Job Site control plane | Select a backend, open sessions against role projections, and refuse autonomous execution when the sandbox conformance suite fails or integration-boundary verification is not true. | No. |
 | Sandbox adapter | Enforce isolation, network policy, credential brokering, limits, cleanup, and audit for one Worker session. | No. |
 | Local test adapter | Deterministic in-process backend used by this suite. | No. |
 | Fullsend / OpenShell adapter | Map this seam onto OpenShell (or Fullsend's OpenShell path) without becoming a ProtoBot control-plane dependency. | No. |
@@ -134,15 +134,16 @@ profile.
 
 Backends implement one adapter with three operations plus session
 methods. The Go types live in `source-control-manager/internal/jobsite`.
-The v1 API suite is internal to the Source Control Manager and runs in
-that process; #172 must add a separate integration-level suite for
+The v1 sandbox conformance suite is internal to the Source Control
+Manager and runs in that process; #172 must add a separate
+integration-level suite for
 checks that must execute inside the adapter runtime.
 
 | Operation | Input | Result |
 | --- | --- | --- |
 | `Identity` | — | Backend name and version. |
 | `Capabilities` | — | The v1 capability set and support flags. |
-| `Open` | Role, projection, projection policy, limits, network allowlist, work-item trace, optional lease | A session, or a fail-closed error. |
+| `Open` | Role, projection, projection policy, limits, network allowlist, work-item trace, optional sandbox lease | A session, or a fail-closed error. |
 | Session `ReadPath` / `WritePath` | Project-relative path | Bytes, or a denial. |
 | Session `Role` | — | The role bound to the projection. |
 | Session `Root` | — | The host-local workspace root for this internal suite. |
@@ -439,11 +440,11 @@ Fullsend/OpenShell adapter under #172).
 | `SB-CRED-006` | Unapproved binary, then approved fetch. | Deny, then inject-after-auth success. |
 | `SB-CRED-007` | Walk sandbox files for the #78 fixture token. | Absent. |
 | `SB-LIFE-001` | Start `sleep 30`; cancel the call context. | Process exits; `sandbox.cancelled`. |
-| `SB-LIFE-002` | Open with a short lease; operate after expiry. | `sandbox.limit` or `sandbox.cancelled`. |
+| `SB-LIFE-002` | Open with a short sandbox lease; operate after expiry. | `sandbox.limit` or `sandbox.cancelled`. |
 | `SB-LIFE-003` | Write, Close, `lstat` the workspace. | Workspace removed. |
 | `SB-LIFE-004` | Write a scratch file, Close, Open a new session. | Prior file absent; roots differ. |
 | `SB-LIM-001` | Short wall-clock; operate after expiry. | Limit recorded and enforced. |
-| `SB-LIM-002` | Tiny CPU limit; execute twice. | Limit recorded and enforced. |
+| `SB-LIM-002` | Tiny CPU limit; execute the required `burn` fixture once or twice. | First or subsequent execution records and enforces the limit. |
 | `SB-LIM-003` | Tiny memory limit; oversize write. | Limit recorded and enforced. |
 | `SB-LIM-004` | Process-count 0; `sleep`. | Limit recorded and enforced. |
 | `SB-LIM-005` | Tiny writable-disk limit; oversize write. | Limit recorded and enforced. |
@@ -463,12 +464,13 @@ Fullsend/OpenShell adapter under #172).
 | Required control | Owner |
 | --- | --- |
 | Adapter and session API behavior | This sandbox conformance suite. |
-| Peer ref enumeration, shared object cache, and out-of-role patch paths | This suite plus the Patch/Ownership Validator. |
+| Peer ref enumeration and shared object cache | #172 integration-level suite. |
+| Out-of-role patch paths | Patch/Ownership Validator. |
 | Host/peer reads, mounts, namespaces, ptrace, privileges, devices, syscalls, and Git checks from inside the actual agent process | #172 for Fullsend/OpenShell; an assigned integration-level suite for the portable profile. |
 | Resource limits | This sandbox conformance suite at the API boundary; the integration-level suite inside each runtime. |
 | Agent-readable proxy and log state | This suite where exposed through `Session`; #172 inside the runtime. |
 | Removal of mounts, network policy, and broker sessions | #172 integration-level suite. |
-| Autonomous-execution gate | API report must pass and `integration_boundary_verified` must be true. |
+| Autonomous-execution gate | `ConformanceReport` must pass and `integration_boundary_verified` must be true. |
 
 ---
 
