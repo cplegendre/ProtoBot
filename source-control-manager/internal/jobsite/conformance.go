@@ -1209,7 +1209,7 @@ func (r *ConformanceReport) failClosed(id string, err error) {
 
 func (r *ConformanceReport) allPassed() bool {
 	for _, check := range r.Checks {
-		if !check.Passed && !check.Skipped {
+		if !check.Passed {
 			return false
 		}
 	}
@@ -1220,7 +1220,7 @@ func (r *ConformanceReport) allPassed() bool {
 func (r *ConformanceReport) FailedChecks() []CheckResult {
 	var out []CheckResult
 	for _, check := range r.Checks {
-		if !check.Passed && !check.Skipped {
+		if !check.Passed {
 			out = append(out, check)
 		}
 	}

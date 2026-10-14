@@ -856,3 +856,69 @@ func TestSentinelInNetworkDestinationAndPathAbsentFromAudit(t *testing.T) {
 		}
 	}
 }
+
+func TestReadPathNonExistentRecordsAuditDenial(t *testing.T) {
+	ctx := context.Background()
+	env := NewConformanceEnv(t)
+	adapter := NewLocalAdapter()
+	session, err := adapter.Open(ctx, env.OpenRequest(RoleWorkerA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = session.Close() }()
+
+	nonExistentPath := "tests/canonical/nonexistent_file.go"
+	_, err = session.ReadPath(ctx, nonExistentPath)
+	if errorCode(err) != CodeSandboxDenied {
+		t.Fatalf("expected CodeSandboxDenied for non-existent path, got %v", err)
+	}
+
+	foundDenial := false
+	for _, ev := range session.Audit() {
+		if ev.EventType == EventSandboxRead &&
+			ev.Decision == DecisionReject &&
+			ev.Action == EventSandboxDeny &&
+			ev.Target == nonExistentPath &&
+			ev.RejectionReason == "Sandbox path does not exist in the projection." {
+			foundDenial = true
+			break
+		}
+	}
+	if !foundDenial {
+		t.Fatalf("missing audit denial event for non-existent path read")
+	}
+}
+
+func TestConformanceReportAllPassedAndFailedChecks(t *testing.T) {
+	report := &ConformanceReport{
+		Checks: []CheckResult{
+			{ID: "C1", Name: "Check 1", Passed: true},
+			{ID: "C2", Name: "Check 2", Passed: false, Detail: "failed check"},
+		},
+	}
+	if report.allPassed() {
+		t.Fatal("expected allPassed() to return false when check failed")
+	}
+	failed := report.FailedChecks()
+	if len(failed) != 1 || failed[0].ID != "C2" {
+		t.Fatalf("expected FailedChecks() to return [C2], got %#v", failed)
+	}
+
+	emptyReport := &ConformanceReport{}
+	if emptyReport.allPassed() {
+		t.Fatal("expected allPassed() to return false for empty checks")
+	}
+
+	allPassReport := &ConformanceReport{
+		Checks: []CheckResult{
+			{ID: "C1", Name: "Check 1", Passed: true},
+			{ID: "C2", Name: "Check 2", Passed: true},
+		},
+	}
+	if !allPassReport.allPassed() {
+		t.Fatal("expected allPassed() to return true when all checks pass")
+	}
+	if len(allPassReport.FailedChecks()) != 0 {
+		t.Fatalf("expected no failed checks, got %#v", allPassReport.FailedChecks())
+	}
+}

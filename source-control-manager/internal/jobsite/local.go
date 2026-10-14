@@ -272,7 +272,8 @@ func (s *localSession) ReadPath(ctx context.Context, projectPath string) ([]byte
 	info, err := os.Lstat(full)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fail(CodeSandboxDenied, "Sandbox path does not exist in the projection.")
+			_, denyErr := s.denyLocked(EventSandboxRead, canonical, "Sandbox path does not exist in the projection.")
+			return nil, denyErr
 		}
 		return nil, err
 	}

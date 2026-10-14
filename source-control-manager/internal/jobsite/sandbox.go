@@ -221,11 +221,10 @@ type SandboxAuditEvent struct {
 
 // CheckResult is one conformance check outcome.
 type CheckResult struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Passed  bool   `json:"passed"`
-	Skipped bool   `json:"skipped,omitempty"`
-	Detail  string `json:"detail,omitempty"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Passed bool   `json:"passed"`
+	Detail string `json:"detail,omitempty"`
 }
 
 // ConformanceReport is the structured capability and conformance report
