@@ -232,13 +232,13 @@ func (s *localSession) Execute(ctx context.Context, req ExecRequest) (ExecResult
 		return ExecResult{}, err
 	}
 	if containsSentinel(req.Args...) {
-		return s.denyLocked(EventSandboxExec, req.Executable, "Process argument contains credential sentinel.")
+		return s.denyLocked(EventSandboxExec, executableAuditTarget(req.Executable), "Process argument contains credential sentinel.")
 	}
 	if req.Network != nil {
 		return s.networkLocked(ctx, req)
 	}
 	if req.Executable == ApprovedFetchName {
-		return s.denyLocked(EventSandboxExec, req.Executable, "Network request is missing from approved-fetch.")
+		return s.denyLocked(EventSandboxExec, executableAuditTarget(req.Executable), "Network request is missing from approved-fetch.")
 	}
 	if req.Executable == BurnName || req.Executable == "burn" {
 		return s.burnLocked(ctx, req)
@@ -246,7 +246,7 @@ func (s *localSession) Execute(ctx context.Context, req ExecRequest) (ExecResult
 	if req.Executable == "sleep" {
 		return s.sleepLocked(ctx, req)
 	}
-	return s.denyLocked(EventSandboxExec, req.Executable, "Executable is not on the sandbox allowlist.")
+	return s.denyLocked(EventSandboxExec, executableAuditTarget(req.Executable), "Executable is not on the sandbox allowlist.")
 }
 
 func (s *localSession) ReadPath(ctx context.Context, projectPath string) ([]byte, error) {
@@ -257,22 +257,22 @@ func (s *localSession) ReadPath(ctx context.Context, projectPath string) ([]byte
 	}
 	canonical, err := s.canonicalInRoot(projectPath)
 	if err != nil {
-		_, denyErr := s.denyLocked(EventSandboxRead, projectPath, "Sandbox path is outside the role projection.")
+		_, denyErr := s.denyLocked(EventSandboxRead, filesystemAuditTarget(projectPath), "Sandbox path is outside the role projection.")
 		return nil, denyErr
 	}
 	if !s.req.Policy.VisibleTo(s.req.Role, canonical) {
-		_, denyErr := s.denyLocked(EventSandboxRead, canonical, "Sandbox path is not visible to the Worker role.")
+		_, denyErr := s.denyLocked(EventSandboxRead, filesystemAuditTarget(canonical), "Sandbox path is not visible to the Worker role.")
 		return nil, denyErr
 	}
 	if isSymlink, _ := s.hasSymlinkComponent(canonical); isSymlink {
-		_, denyErr := s.denyLocked(EventSandboxRead, canonical, "Sandbox path must not follow symlinks.")
+		_, denyErr := s.denyLocked(EventSandboxRead, filesystemAuditTarget(canonical), "Sandbox path must not follow symlinks.")
 		return nil, denyErr
 	}
 	full := filepath.Join(s.root, filepath.FromSlash(canonical))
 	info, err := os.Lstat(full)
 	if err != nil {
 		if os.IsNotExist(err) {
-			_, denyErr := s.denyLocked(EventSandboxRead, canonical, "Sandbox path does not exist in the projection.")
+			_, denyErr := s.denyLocked(EventSandboxRead, filesystemAuditTarget(canonical), "Sandbox path does not exist in the projection.")
 			return nil, denyErr
 		}
 		return nil, err
@@ -287,7 +287,7 @@ func (s *localSession) ReadPath(ctx context.Context, projectPath string) ([]byte
 	if int64(len(data)) > s.limitMemory {
 		return nil, s.limitLocked("memory", fmt.Sprintf("%d", s.limitMemory), "Memory limit exceeded.")
 	}
-	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxRead, Decision: DecisionAccept, Action: "read", Target: canonical})
+	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxRead, Decision: DecisionAccept, Action: "read", Target: filesystemAuditTarget(canonical)})
 	return data, nil
 }
 
@@ -299,7 +299,7 @@ func (s *localSession) WritePath(ctx context.Context, projectPath string, conten
 	}
 	canonical, err := s.canonicalInRoot(projectPath)
 	if err != nil {
-		_, denyErr := s.denyLocked(EventSandboxWrite, projectPath, "Sandbox path is outside the role projection.")
+		_, denyErr := s.denyLocked(EventSandboxWrite, filesystemAuditTarget(projectPath), "Sandbox path is outside the role projection.")
 		return denyErr
 	}
 	if !s.req.Policy.WritableBy(s.req.Role, canonical) {
@@ -310,15 +310,15 @@ func (s *localSession) WritePath(ctx context.Context, projectPath string, conten
 		case ClassUnclassified:
 			reason = "Sandbox path is unclassified and denied by default."
 		}
-		_, denyErr := s.denyLocked(EventSandboxWrite, canonical, reason)
+		_, denyErr := s.denyLocked(EventSandboxWrite, filesystemAuditTarget(canonical), reason)
 		return denyErr
 	}
 	if mode != ModeFile && mode != ModeExec {
-		_, denyErr := s.denyLocked(EventSandboxWrite, canonical, "Sandbox file mode must be 100644 or 100755.")
+		_, denyErr := s.denyLocked(EventSandboxWrite, filesystemAuditTarget(canonical), "Sandbox file mode must be 100644 or 100755.")
 		return denyErr
 	}
 	if isSymlink, _ := s.hasSymlinkComponent(canonical); isSymlink {
-		_, denyErr := s.denyLocked(EventSandboxWrite, canonical, "Sandbox path must not follow symlinks.")
+		_, denyErr := s.denyLocked(EventSandboxWrite, filesystemAuditTarget(canonical), "Sandbox path must not follow symlinks.")
 		return denyErr
 	}
 	size := int64(len(content))
@@ -353,7 +353,7 @@ func (s *localSession) WritePath(ctx context.Context, projectPath string, conten
 	}
 	s.writtenBytes += size
 	s.writes[canonical] = localWrite{action: action, mode: mode, content: append([]byte(nil), content...)}
-	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxWrite, Decision: DecisionAccept, Action: action, Target: canonical})
+	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxWrite, Decision: DecisionAccept, Action: action, Target: filesystemAuditTarget(canonical)})
 	return nil
 }
 
@@ -380,7 +380,7 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 	}
 	cleanArgs, err := classifyAndPrepareGitArgs(args)
 	if err != nil {
-		res, denyErr := s.denyLocked(EventSandboxGit, strings.Join(args, " "), err.Error())
+		res, denyErr := s.denyLocked(EventSandboxGit, gitAuditTarget(args), "Git command is denied by sandbox policy.")
 		s.mu.Unlock()
 		return res, denyErr
 	}
@@ -460,13 +460,13 @@ func (s *localSession) Git(ctx context.Context, args ...string) (ExecResult, err
 	}
 	out := ExecResult{Status: status, Stdout: output.stdoutBytes(), Stderr: output.stderrBytes()}
 	if containsSentinelBytes(out.Stdout, out.Stderr) {
-		return s.denyLocked(EventSandboxGit, strings.Join(args, " "), "Git output contained a credential sentinel.")
+		return s.denyLocked(EventSandboxGit, gitAuditTarget(args), "Git output contained a credential sentinel.")
 	}
 	decision := DecisionAccept
 	if status != 0 {
 		decision = DecisionReject
 	}
-	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxGit, Decision: decision, Action: args[0], Target: strings.Join(args, " ")})
+	s.appendAudit(SandboxAuditEvent{EventType: EventSandboxGit, Decision: decision, Action: cleanArgs[0], Target: gitAuditTarget(args)})
 	return out, nil
 }
 
@@ -717,7 +717,7 @@ func (s *localSession) sleepLocked(ctx context.Context, req ExecRequest) (ExecRe
 
 func (s *localSession) burnLocked(ctx context.Context, req ExecRequest) (ExecResult, error) {
 	if req.Digest != "" && req.Digest != BurnDigest {
-		return s.denyLocked(EventSandboxExec, req.Executable, "Executable digest does not match allowlist.")
+		return s.denyLocked(EventSandboxExec, executableAuditTarget(req.Executable), "Executable digest does not match allowlist.")
 	}
 	burnDur := 30 * time.Millisecond
 	if len(req.Args) > 0 {
@@ -768,7 +768,7 @@ burnLoop:
 		Decision:   DecisionAccept,
 		Action:     "burn",
 		Target:     "burn",
-		Executable: req.Executable,
+		Executable: BurnName,
 	})
 	return ExecResult{Status: 0, Stdout: []byte("burned")}, nil
 }
@@ -932,6 +932,22 @@ func networkRuleTarget(rule NetworkRule) string {
 		rule.Path,
 	}
 	return "network-rule:" + digestBytes([]byte(strings.Join(fields, "\x00")))
+}
+
+func auditSubject(kind, value string) string {
+	return kind + ":" + digestBytes([]byte(value))
+}
+
+func filesystemAuditTarget(path string) string {
+	return auditSubject("filesystem", path)
+}
+
+func executableAuditTarget(executable string) string {
+	return auditSubject("executable", executable)
+}
+
+func gitAuditTarget(args []string) string {
+	return auditSubject("git", strings.Join(args, "\x00"))
 }
 
 func (s *localSession) startBroker() {
@@ -1337,24 +1353,33 @@ func validateGitOperand(op string) error {
 	if op == "--" || op == "--end-of-options" {
 		return nil
 	}
-	if strings.HasPrefix(op, "/") || strings.HasPrefix(op, "~") || filepath.IsAbs(op) {
-		return fmt.Errorf("git operand %q is outside sandbox root", op)
-	}
 	if strings.ContainsAny(op, "\\\x00") {
 		return fmt.Errorf("git operand %q contains invalid characters", op)
 	}
+	revision := op
 	pathPart := op
-	if _, path, ok := strings.Cut(op, ":"); ok {
+	if rev, path, ok := strings.Cut(op, ":"); ok {
+		revision = rev
 		pathPart = path
 	}
-	if strings.HasPrefix(pathPart, "/") || strings.HasPrefix(pathPart, "~") || filepath.IsAbs(pathPart) {
+	if err := validateGitOperandPath(op, revision); err != nil {
+		return err
+	}
+	return validateGitOperandPath(op, pathPart)
+}
+
+func validateGitOperandPath(op, part string) error {
+	if part == "" {
+		return nil
+	}
+	if strings.HasPrefix(part, "/") || strings.HasPrefix(part, "~") || filepath.IsAbs(part) {
 		return fmt.Errorf("git operand %q is outside sandbox root", op)
 	}
-	if _, err := canonicalPath(pathPart); err != nil || hasGitComponent(pathPart) {
+	if _, err := canonicalPath(part); err != nil || hasGitComponent(part) {
 		return fmt.Errorf("git operand %q contains invalid path: %w", op, err)
 	}
-	cleaned := filepath.Clean(pathPart)
-	if strings.HasPrefix(cleaned, "..") || strings.HasPrefix(pathPart, "../") || pathPart == ".." || strings.Contains(pathPart, "/../") || strings.HasSuffix(pathPart, "/..") {
+	cleaned := filepath.Clean(part)
+	if strings.HasPrefix(cleaned, "..") || strings.HasPrefix(part, "../") || part == ".." || strings.Contains(part, "/../") || strings.HasSuffix(part, "/..") {
 		return fmt.Errorf("git operand %q is outside sandbox root", op)
 	}
 	return nil

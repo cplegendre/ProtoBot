@@ -363,7 +363,16 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 		if bundle.Version != 1 || bundle.Role != RoleWorkerA {
 			return fmt.Errorf("bundle version/role = %d %s", bundle.Version, bundle.Role)
 		}
-		applied, err := ApplyPatch(env.Export.Integration, env.Export.Policy, bundle)
+		integrationParent, err := os.MkdirTemp("", "jobsite-sandbox-integration-")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = os.RemoveAll(integrationParent) }()
+		integration, err := exportIntegration(env.Source.Root, env.Export.SourceCommit, filepath.Join(integrationParent, integrationDir))
+		if err != nil {
+			return err
+		}
+		applied, err := ApplyPatch(*integration, env.Export.Policy, bundle)
 		if err != nil {
 			return err
 		}
@@ -449,6 +458,7 @@ func runChecks(ctx context.Context, report *ConformanceReport, adapter Adapter, 
 			{"pull", env.Export.Integration.Path},
 			{"clone", env.Export.Integration.Path},
 			{"ls-remote", env.Export.Integration.Path},
+			{"remote", "add", "origin", env.Export.Integration.Path},
 			{"--git-dir=" + integrationGitDir, "cat-file", "-e", env.Source.HistoricalImplBlob},
 			{"--git-dir", integrationGitDir, "cat-file", "-e", env.Source.HistoricalImplBlob},
 			{"diff", "--no-index", "--", "/etc/passwd", "/dev/null"},

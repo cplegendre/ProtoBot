@@ -90,6 +90,20 @@ func TestConformanceClosesEachSessionOnce(t *testing.T) {
 	}
 }
 
+func TestConformanceEnvReusableAcrossRuns(t *testing.T) {
+	env := NewConformanceEnv(t)
+	adapter := NewLocalAdapter()
+	for run := 1; run <= 2; run++ {
+		report := RunSandboxConformance(context.Background(), adapter, env)
+		if !report.Passed {
+			for _, check := range report.FailedChecks() {
+				t.Errorf("run %d %s %s: %s", run, check.ID, check.Name, check.Detail)
+			}
+			t.Fatalf("run %d failed", run)
+		}
+	}
+}
+
 func TestConformanceClosesSessionsWhenSecondOpenFails(t *testing.T) {
 	env := NewConformanceEnv(t)
 	closed := false
@@ -320,6 +334,8 @@ func TestGitArgValidation(t *testing.T) {
 		{"--config-env=foo=BAR", "status"},
 		{"diff", "/etc/passwd"},
 		{"diff", "../outside"},
+		{"show", "../outside:file"},
+		{"show", ".git:config"},
 		{"cat-file", "-e", "/etc/passwd"},
 		{"cat-file", "--batch-all-objects"},
 		{"cat-file", "--batch"},
@@ -857,6 +873,29 @@ func TestSentinelInNetworkDestinationAndPathAbsentFromAudit(t *testing.T) {
 	}
 }
 
+func TestSentinelInCallerControlledInputsAbsentFromAudit(t *testing.T) {
+	ctx := context.Background()
+	env := NewConformanceEnv(t)
+	session, err := NewLocalAdapter().Open(ctx, env.OpenRequest(RoleWorkerA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = session.Close() }()
+
+	sentinel := "audit-secret-sentinel"
+	filesystemPath := "tests/canonical/" + sentinel + ".go"
+	_, _ = session.ReadPath(ctx, filesystemPath)
+	_ = session.WritePath(ctx, filesystemPath, []byte("x"), ModeFile)
+	_, _ = session.Execute(ctx, ExecRequest{Executable: sentinel})
+	_, _ = session.Git(ctx, "show", sentinel+":../outside")
+
+	for _, event := range session.Audit() {
+		if auditEventContainsSentinel(event, sentinel) {
+			t.Fatalf("caller-controlled sentinel leaked into audit field: %#v", event)
+		}
+	}
+}
+
 func TestReadPathNonExistentRecordsAuditDenial(t *testing.T) {
 	ctx := context.Background()
 	env := NewConformanceEnv(t)
@@ -878,7 +917,7 @@ func TestReadPathNonExistentRecordsAuditDenial(t *testing.T) {
 		if ev.EventType == EventSandboxRead &&
 			ev.Decision == DecisionReject &&
 			ev.Action == EventSandboxDeny &&
-			ev.Target == nonExistentPath &&
+			ev.Target == filesystemAuditTarget(nonExistentPath) &&
 			ev.RejectionReason == "Sandbox path does not exist in the projection." {
 			foundDenial = true
 			break

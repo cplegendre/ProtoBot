@@ -33,7 +33,7 @@
 ## Purpose and scope
 
 This contract turns the Job Site execution and sandbox requirements
-into an acceptance suite that every backend must pass. Prompts are
+into the sandbox conformance suite that every backend must pass. Prompts are
 not a security boundary. A product-name claim is not sufficient.
 
 The contract covers:
@@ -161,7 +161,7 @@ directory as its writable root. `Close` removes that workspace.
 Stable failure codes are `sandbox.denied`, `sandbox.limit`,
 `sandbox.cancelled`, and `sandbox.fail_closed`.
 
-`RunSandboxConformance` is the reusable suite. It returns a
+`RunSandboxConformance` is the sandbox conformance suite. It returns a
 `ConformanceReport` covering backend identity and version, policy
 version and digest, executable digests, resource limits, check results,
 integration-boundary status, audit heads, and whether autonomous
@@ -294,6 +294,9 @@ name, configured limit, and cleanup result. Events cover open,
 authorization decision, allowed request, denial, cancellation, and
 cleanup. Credentials, remote URLs, peer source, raw Worker logs, and
 raw Inspector findings stay out of the record.
+Audit targets use stable policy categories or SHA-256 subject digests.
+Raw filesystem paths, executable names, Git argv, network destinations,
+and remote URLs are not recorded as audit subjects.
 
 Audit evidence is private Job Site evidence. It is not project
 repository content and is not a WMS Adapter resource. Production
@@ -416,7 +419,7 @@ Fullsend/OpenShell adapter under #172).
 | `SB-GIT-003` | `git remote` in a Worker session. | Empty. |
 | `SB-GIT-004` | Alternates file under the Worker git dir. | Absent. |
 | `SB-GIT-005` | Reflogs under the Worker git dir. | Absent. |
-| `SB-GIT-006` | `git fetch` of Integration. | Denied. |
+| `SB-GIT-006` | Remote-capable Git commands against Integration, including `fetch` and `remote add`. | Denied. |
 | `SB-GIT-007` | `git cat-file -e` of a historical implementation blob. | Non-zero or denied. |
 | `SB-NET-001` | `approved-fetch` to the allowlisted destination, method, and path. | HTTP 200; body has no credential. |
 | `SB-NET-002` | Same destination from `curl`. | Denied. |
@@ -461,7 +464,8 @@ Fullsend/OpenShell adapter under #172).
 | --- | --- |
 | Adapter and session API behavior | This sandbox conformance suite. |
 | Peer ref enumeration, shared object cache, and out-of-role patch paths | This suite plus the Patch/Ownership Validator. |
-| Host/peer reads, mounts, namespaces, ptrace, privileges, devices, syscalls, and Git checks from inside the actual agent process | #172 integration-level suite. |
+| Host/peer reads, mounts, namespaces, ptrace, privileges, devices, syscalls, and Git checks from inside the actual agent process | #172 for Fullsend/OpenShell; an assigned integration-level suite for the portable profile. |
+| Resource limits | This sandbox conformance suite at the API boundary; the integration-level suite inside each runtime. |
 | Agent-readable proxy and log state | This suite where exposed through `Session`; #172 inside the runtime. |
 | Removal of mounts, network policy, and broker sessions | #172 integration-level suite. |
 | Autonomous-execution gate | API report must pass and `integration_boundary_verified` must be true. |

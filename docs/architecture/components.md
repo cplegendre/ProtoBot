@@ -2056,16 +2056,14 @@ The versioned, backend-neutral contract is the
 The local test adapter and sandbox conformance suite live in
 `source-control-manager/internal/jobsite`. Prompts are not a security
 boundary. The sandbox is the primary enforcement mechanism for
-safeguards. Fullsend/OpenShell, direct OpenShell, and the portable
-profile must pass the same contract and the #172
-integration-level suite for every supported compute backend:
+safeguards.
 
-- **Execution and filesystem:** no host, peer Worker, canonical repo, or
-  integration-repo reads; no writes outside projected paths; no mount,
-  namespace, ptrace, privilege, device, or forbidden syscall escape.
-- **Git isolation:** all negative ref/object/history/remote tests in
-  [Worker repository projections](#worker-repository-projections-decided)
-  pass from inside the actual agent process.
+The sandbox conformance suite owns these API-boundary controls:
+
+- **Filesystem API:** no host, peer Worker, canonical repo, or
+  integration-repo reads and no writes outside projected paths.
+- **Git API:** the negative ref/object/history/remote checks in
+  [Worker repository projections](#worker-repository-projections-decided).
 - **Network:** deny by default; allow only an approved executable to an
   approved destination, protocol, method, and L7 path. Tests must reject
   the same destination from another binary plus DNS, direct-IP, redirect,
@@ -2074,13 +2072,22 @@ integration-level suite for every supported compute backend:
   environment variable, process argument, log, response body, or agent-
   readable proxy state. A boundary broker injects credentials only after
   authorization and strips them before responses return.
-- **Lifecycle:** sandbox-lease expiry, process termination, and work-item
-  completion remove ephemeral repositories, processes, mounts, network
-  policy, and broker sessions without making data recoverable by the next
-  sandbox.
+- **Lifecycle API:** sandbox-lease expiry and process termination stop
+  further session operations.
+- **Resource limits:** wall-clock, CPU, memory, process-count,
+  writable-disk, and writable-file limits fail closed.
 - **Auditability:** policy version, sandbox/backend version, executable
   digest, authorization decision, allowed request, denial, and cleanup
   result are tied to the work-item trace.
+
+Each runtime must also pass an integration-level suite that checks the
+actual Worker execution boundary. #172 owns that suite for
+Fullsend/OpenShell. It must reject host/peer reads; mount, namespace,
+ptrace, privilege, device, and forbidden-syscall escapes; Git checks run
+from inside the agent process; agent-readable proxy and log state; and
+leftover mounts, network policy, or broker sessions. The portable profile
+requires an assigned integration-level owner before it can enable
+autonomous execution.
 
 If a backend or platform cannot pass both suites, the Job Site refuses
 autonomous execution. It must not silently switch to a weaker profile.
