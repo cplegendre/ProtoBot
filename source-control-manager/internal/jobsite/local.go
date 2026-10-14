@@ -1044,7 +1044,7 @@ func limitMessage(name string) string {
 }
 
 func (s *localSession) denyLocked(eventType, target, reason string) (ExecResult, error) {
-	s.appendAudit(SandboxAuditEvent{EventType: eventType, Decision: DecisionReject, RejectionReason: reason, Action: EventSandboxDeny, Target: target})
+	s.appendAudit(SandboxAuditEvent{EventType: eventType, Decision: DecisionReject, RejectionReason: reason, Action: ActionDeny, Target: target})
 	return ExecResult{Denied: true, Status: -1, Stderr: []byte(reason)}, fail(CodeSandboxDenied, reason)
 }
 

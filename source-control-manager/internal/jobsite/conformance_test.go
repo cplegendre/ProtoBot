@@ -987,7 +987,7 @@ func TestReadPathNonExistentRecordsAuditDenial(t *testing.T) {
 	for _, ev := range session.Audit() {
 		if ev.EventType == EventSandboxRead &&
 			ev.Decision == DecisionReject &&
-			ev.Action == EventSandboxDeny &&
+			ev.Action == ActionDeny &&
 			ev.Target == filesystemAuditTarget(nonExistentPath) &&
 			ev.RejectionReason == "Sandbox path does not exist in the projection." {
 			foundDenial = true

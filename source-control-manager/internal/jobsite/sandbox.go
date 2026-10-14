@@ -49,11 +49,13 @@ const (
 	EventSandboxWrite   = "sandbox.write"
 	EventSandboxGit     = "sandbox.git"
 	EventSandboxNetwork = "sandbox.network"
-	EventSandboxDeny    = "sandbox.deny"
 	EventSandboxLimit   = "sandbox.limit"
 	EventSandboxCancel  = "sandbox.cancel"
 	EventSandboxCleanup = "sandbox.cleanup"
 )
+
+// Sandbox audit actions.
+const ActionDeny = "deny"
 
 // Approved local-adapter network identity. The executable is a named
 // in-process client; the digest pins that name and contract version.
