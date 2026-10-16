@@ -20,17 +20,25 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   including `Specification store check`, belong in the review verdict with
   the blocking comments or as `chore`. Do not treat pending CI checks as
   passing.
-- Before conducting detailed specification analysis, require a checkout or
-  worktree of the recorded PR head, fetch `repository.canonical_remote` for
-  `repository.default_branch`, and update the local default branch ref (or
-  verify via SCM `repo_state` that `remote.reachable` is true and
-  `default_branch.local` is current/fast-forwarded). Run `ears-manager check`
-  and verify that it emits none of `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`,
-  or `BASE_COMMIT_STALE`. Any of `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or
-  `BASE_COMMIT_STALE` emitted by `ears-manager check` is a blocking finding.
-  Do not treat a `check` pass on the base branch as evidence. A local
-  `ears-manager check` pass is not evidence of freshness unless the local
-  default branch ref is synchronized with the canonical remote.
+- Before conducting detailed specification analysis, inspect the PR diff for
+  `repository.canonical_remote` or `repository.default_branch` changes before
+  any fetch. Prefer SCM `repo_state` (configured remote only) to verify that
+  `remote.reachable` is true and `default_branch.local` is
+  current/fast-forwarded. If fetching directly with git, resolve the fetch
+  remote and default-branch name from the base branch (or already-configured
+  local remote / the same pinned URL and ref CI uses:
+  `https://github.com/redhat-et/ProtoBot.git refs/heads/main`), never from
+  PR-head `.protobot/project.yaml`; never pass PR-head
+  `repository.canonical_remote` to `git fetch`, and never update the local
+  default branch ref from a PR-controlled remote. Update the local default
+  branch ref from that verified remote. Require a checkout or worktree of the
+  recorded PR head, run `ears-manager check`, and verify that it emits none of
+  `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or `BASE_COMMIT_STALE`. Any of
+  `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or `BASE_COMMIT_STALE` emitted by
+  `ears-manager check` is a blocking finding. Do not treat a `check` pass on
+  the base branch as evidence. A local `ears-manager check` pass is not
+  evidence of freshness unless the local default branch ref is synchronized
+  with the canonical remote.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
@@ -72,17 +80,34 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     raise a staleness finding that prescribes `ears-manager artifact put`, not
     an edit by hand.
 - When a PR modifies `.protobot/project.yaml`, inspect the diff for a hand
-  edit to `repository.canonical_remote` or `artifacts[]` metadata. Rule 5 of
-  "Rules for creating or modifying specification documents" in `AGENTS.md`
-  forbids a hand edit to `.protobot/project.yaml`. Diffs to
-  `artifacts[].owner`, `artifacts[].validator`, and `artifacts[].kind` in
-  `.protobot/project.yaml` are hand-edit findings unless produced by
-  `ears-manager artifact put` recorded in a proposed change-set manifest's
-  `artifact_operations[]` entry within an authorized change set. A hand edit
-  to `repository.canonical_remote` in `.protobot/project.yaml` is a finding.
+  edit to `repository.canonical_remote` or `artifacts[]` metadata
+  (`artifacts[].owner`, `artifacts[].validator`, and `artifacts[].kind`). Rule 5
+  of "Rules for creating or modifying specification documents" in `AGENTS.md`
+  forbids a hand edit to `.protobot/project.yaml`. Diffs to `artifacts[]`
+  metadata (`artifacts[].owner`, `artifacts[].validator`, and
+  `artifacts[].kind`) in `.protobot/project.yaml` are hand-edit findings unless
+  the proposed-change-set test passes (for each modified artifact entry,
+  resolving `artifacts[].id` in `.protobot/project.yaml`, require a change-set
+  manifest under `.protobot/change-sets/` (count a change-set only when
+  working-tree `ears-manager change-set show` (no `--at`), after the PR head is
+  checked out, reports `proposed` iff the manifest path is absent from the
+  default-branch tree; if `show --at <pr-head>` is used, require path-absence
+  in addition to `proposed`; do not treat `--at` status alone as evidence of
+  `artifact put`; never treat a path that already exists on the default
+  branch, including a modified `cs-00001.yaml`, as evidence of `artifact put`)
+  to contain an `artifact_operations[]` entry whose `artifact_id` equals that
+  registry id) and the field diff is limited to changes `ears-manager artifact
+  put` can write (`artifacts[].owner` on `action: add` for a newly added
+  artifact entry, not `artifacts[].owner` on `action: revise` where
+  `artifact.owner_immutable` forbids owner modification; an owner edit on an
+  existing artifact is always a hand edit). Do not treat mere presence of an
+  `artifact_operations[]` entry as proof that `artifacts[]` metadata
+  (`artifacts[].owner`, `artifacts[].validator`, and `artifacts[].kind`) diffs
+  were produced by `artifact put`. A hand edit to
+  `repository.canonical_remote` in `.protobot/project.yaml` is a finding.
   `ears-manager check` exiting 0 is not evidence that
-  `repository.canonical_remote` or `artifacts[].owner`,
-  `artifacts[].validator`, and `artifacts[].kind` were not edited by hand.
+  `repository.canonical_remote` or `artifacts[]` metadata (`artifacts[].owner`,
+  `artifacts[].validator`, and `artifacts[].kind`) were not edited by hand.
 - Write the review to `review-<PR number>.md` in the repository root. Do not
   commit it, do not post it, do not push.
 
@@ -90,10 +115,10 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
 
 1. Header: PR link, head and base SHAs, author, review date, files touched.
 2. Verdict: approve or request changes, then the blocking comments as a
-   list, one line each: ID and title. Then any `chore`, then praise, then
-   any `thought`. Nothing else. Failing CI checks, including
+   list, one line each: ID and title. Failing CI checks, including
    `Specification store check`, belong in the review verdict with the
-   blocking comments or as `chore`.
+   blocking comments or as `chore`. Then any `chore`, then praise, then
+   any `thought`. Nothing else.
 3. Comments, grouped in this order: blocking; non-blocking issues and
    suggestions; todos, nitpicks, and questions; other files. Inside a group,
    keep file order.
