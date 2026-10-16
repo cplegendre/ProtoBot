@@ -27,12 +27,15 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   hand-edit finding and do not run `repo_state` on the PR-head tree. SCM
   `repo_state` reads `.protobot/project.yaml` and is safe only when those two
   fields are unchanged versus the base branch. Make the CI sequence the only
-  allowed freshness sync: fetch `repository.default_branch` from the canonical
-  remote using the pinned command in `.github/workflows/ci-workflow.yaml`
+  allowed freshness sync: check out (or worktree) the recorded PR head, then
+  `git checkout --detach HEAD`, then fetch `repository.default_branch` from the
+  canonical remote using the pinned command in
+  `.github/workflows/ci-workflow.yaml`
   (`git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`),
-  point `refs/heads/main` at `FETCH_HEAD` with `update-ref` after HEAD is not on
-  `main` (detach or check out the recorded PR head first), then run
-  `ears-manager check`. Do not treat the GitHub PR base SHA, the merge-base, a
+  then `git update-ref refs/heads/main FETCH_HEAD`, then run
+  `ears-manager check`. Do not present detach as an alternative to checking out
+  the PR head, and do not treat a `check` that ran against any other worktree as
+  a freshness result. Do not treat the GitHub PR base SHA, the merge-base, a
   fast-forward of a local `main`, or an unsynchronized local default-branch ref
   as the freshness target. Verify that it emits none of `BASE_NOT_ON_DEFAULT`,
   `DEFAULT_MOVED`, or `BASE_COMMIT_STALE`. Any of `BASE_NOT_ON_DEFAULT`,
