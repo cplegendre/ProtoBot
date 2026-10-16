@@ -26,17 +26,20 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   `repository.canonical_remote` or `repository.default_branch`, treat it as a
   hand-edit finding and do not run `repo_state` on the PR-head tree. SCM
   `repo_state` reads `.protobot/project.yaml` and is safe only when those two
-  fields are unchanged versus the base branch. Sync the local default-branch ref
-  only from the PR base (or the CI pin
-  `git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`
-  plus a fast-forward/`update-ref` of `refs/heads/main`), then check out the
-  recorded PR head and run `ears-manager check`. Verify that it emits none of
-  `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or `BASE_COMMIT_STALE`. Any of
-  `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or `BASE_COMMIT_STALE` emitted by
-  `ears-manager check` is a blocking finding. Do not treat a `check` pass on
-  the base branch as evidence. A local `ears-manager check` pass is not
-  evidence of freshness unless the local default branch ref is synchronized
-  with the canonical remote.
+  fields are unchanged versus the base branch. Make the CI sequence the only
+  allowed freshness sync: fetch `repository.default_branch` from the canonical
+  remote using the pinned command in `.github/workflows/ci-workflow.yaml`
+  (`git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`),
+  point `refs/heads/main` at `FETCH_HEAD` with `update-ref` after HEAD is not on
+  `main` (detach or check out the recorded PR head first), then run
+  `ears-manager check`. Do not treat the GitHub PR base SHA, the merge-base, a
+  fast-forward of a local `main`, or an unsynchronized local default-branch ref
+  as the freshness target. Verify that it emits none of `BASE_NOT_ON_DEFAULT`,
+  `DEFAULT_MOVED`, or `BASE_COMMIT_STALE`. Any of `BASE_NOT_ON_DEFAULT`,
+  `DEFAULT_MOVED`, or `BASE_COMMIT_STALE` emitted by `ears-manager check` is a
+  blocking finding. Do not treat a `check` pass on the base branch as evidence.
+  A local `ears-manager check` pass is not evidence of freshness unless the
+  local default branch ref is synchronized with the canonical remote.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
