@@ -18,18 +18,19 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   the head SHA.
 - Check CI status on the PR head with `gh pr checks`. Failing CI checks,
   including `Specification store check`, belong in the review verdict with
-  the blocking comments or as `chore`.
+  the blocking comments or as `chore`. Do not treat pending CI checks as
+  passing.
 - Before conducting detailed specification analysis, require a checkout or
-  worktree of the recorded PR head and run `ears-manager check`. Verify that
-  `ears-manager check` emits neither `DEFAULT_MOVED` nor `BASE_COMMIT_STALE`.
-  `DEFAULT_MOVED` or `BASE_COMMIT_STALE` emitted by `ears-manager check` is
-  a blocking finding. Do not treat a `check` pass on the base branch as
-  evidence.
-  - `DEFAULT_MOVED` or `BASE_COMMIT_STALE` emitted by `ears-manager check`
-    (require a checkout or worktree of the recorded PR head before `check`;
-    a working-tree `check` on the base branch is not evidence) is a blocking
-    finding. Record that blocking finding before conducting detailed
-    specification analysis.
+  worktree of the recorded PR head, fetch `repository.canonical_remote` for
+  `repository.default_branch`, and update the local default branch ref (or
+  verify via SCM `repo_state` that `remote.reachable` is true and
+  `default_branch.local` is current/fast-forwarded). Run `ears-manager check`
+  and verify that it emits none of `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`,
+  or `BASE_COMMIT_STALE`. Any of `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or
+  `BASE_COMMIT_STALE` emitted by `ears-manager check` is a blocking finding.
+  Do not treat a `check` pass on the base branch as evidence. A local
+  `ears-manager check` pass is not evidence of freshness unless the local
+  default branch ref is synchronized with the canonical remote.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
@@ -71,14 +72,17 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     raise a staleness finding that prescribes `ears-manager artifact put`, not
     an edit by hand.
 - When a PR modifies `.protobot/project.yaml`, inspect the diff for a hand
-  edit to `owner`, `validator`, `kind`, or `repository.canonical_remote` in
-  `.protobot/project.yaml`. Rule 5 of "Rules for creating or modifying
-  specification documents" in `AGENTS.md` forbids a hand edit to
-  `.protobot/project.yaml`. `ears-manager check` is not evidence that
-  `owner`, `validator`, `kind`, or `repository.canonical_remote` were not
-  edited by hand. A hand edit to `owner`, `validator`, `kind`, or
-  `repository.canonical_remote` in `.protobot/project.yaml` is a finding,
-  even when `ears-manager check` exits 0.
+  edit to `repository.canonical_remote` or `artifacts[]` metadata. Rule 5 of
+  "Rules for creating or modifying specification documents" in `AGENTS.md`
+  forbids a hand edit to `.protobot/project.yaml`. Diffs to
+  `artifacts[].owner`, `artifacts[].validator`, and `artifacts[].kind` in
+  `.protobot/project.yaml` are hand-edit findings unless produced by
+  `ears-manager artifact put` recorded in a proposed change-set manifest's
+  `artifact_operations[]` entry within an authorized change set. A hand edit
+  to `repository.canonical_remote` in `.protobot/project.yaml` is a finding.
+  `ears-manager check` exiting 0 is not evidence that
+  `repository.canonical_remote` or `artifacts[].owner`,
+  `artifacts[].validator`, and `artifacts[].kind` were not edited by hand.
 - Write the review to `review-<PR number>.md` in the repository root. Do not
   commit it, do not post it, do not push.
 
@@ -138,12 +142,11 @@ The Drafting Table agent creates and refines backlog requests
 ## Rules for the content
 
 - Post only what the author can act on. A check that found nothing (the
-  branch is behind `main`, the merge is clean, no stale wording is left)
-  goes in the "What was checked" section of the local document, never in
-  the posted review or its comments. `DEFAULT_MOVED` or `BASE_COMMIT_STALE`
-  emitted by `ears-manager check` (require a checkout or worktree of the
-  recorded PR head before `check`; a working-tree `check` on the base branch
-  is not evidence) is a blocking finding, not a check that found nothing.
+  branch is up to date with `main`, the merge is clean, no stale wording is
+  left) goes in the "What was checked" section of the local document, never
+  in the posted review or its comments. `BASE_NOT_ON_DEFAULT`,
+  `DEFAULT_MOVED`, or `BASE_COMMIT_STALE` emitted by `ears-manager check` is
+  a blocking finding, not a check that found nothing.
 - Problem first, then evidence, then fix. Say what is wrong before why.
 - Every fix must make the design or the code simpler or more complete. Drop
   a proposal that adds more than it removes.
