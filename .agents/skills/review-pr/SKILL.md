@@ -20,19 +20,17 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   including `Specification store check`, belong in the review verdict with
   the blocking comments or as `chore`. Do not treat pending CI checks as
   passing.
-- Before conducting detailed specification analysis, inspect the PR diff for
-  `repository.canonical_remote` or `repository.default_branch` changes before
-  any fetch. Prefer SCM `repo_state` (configured remote only) to verify that
-  `remote.reachable` is true and `default_branch.local` is
-  current/fast-forwarded. If fetching directly with git, resolve the fetch
-  remote and default-branch name from the base branch (or already-configured
-  local remote / the same pinned URL and ref CI uses:
-  `https://github.com/redhat-et/ProtoBot.git refs/heads/main`), never from
-  PR-head `.protobot/project.yaml`; never pass PR-head
-  `repository.canonical_remote` to `git fetch`, and never update the local
-  default branch ref from a PR-controlled remote. Update the local default
-  branch ref from that verified remote. Require a checkout or worktree of the
-  recorded PR head, run `ears-manager check`, and verify that it emits none of
+- Before conducting detailed specification analysis, follow a single trusted
+  freshness sequence: inspect the PR diff for `repository.canonical_remote` or
+  `repository.default_branch` changes before any fetch. If the PR diffs
+  `repository.canonical_remote` or `repository.default_branch`, treat it as a
+  hand-edit finding and do not run `repo_state` on the PR-head tree. SCM
+  `repo_state` reads `.protobot/project.yaml` and is safe only when those two
+  fields are unchanged versus the base branch. Sync the local default-branch ref
+  only from the PR base (or the CI pin
+  `git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`
+  plus a fast-forward/`update-ref` of `refs/heads/main`), then check out the
+  recorded PR head and run `ears-manager check`. Verify that it emits none of
   `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or `BASE_COMMIT_STALE`. Any of
   `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or `BASE_COMMIT_STALE` emitted by
   `ears-manager check` is a blocking finding. Do not treat a `check` pass on
@@ -97,15 +95,11 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   branch, including a modified `cs-00001.yaml`, as evidence of `artifact put`)
   to contain an `artifact_operations[]` entry whose `artifact_id` equals that
   registry id) and the field diff is limited to changes `ears-manager artifact
-  put` can write (`artifacts[].owner` on `action: add` for a newly added
-  artifact entry, not `artifacts[].owner` on `action: revise` where
-  `artifact.owner_immutable` forbids owner modification; an owner edit on an
-  existing artifact is always a hand edit). Do not treat mere presence of an
-  `artifact_operations[]` entry as proof that `artifacts[]` metadata
-  (`artifacts[].owner`, `artifacts[].validator`, and `artifacts[].kind`) diffs
-  were produced by `artifact put`. A hand edit to
-  `repository.canonical_remote` in `.protobot/project.yaml` is a finding.
-  `ears-manager check` exiting 0 is not evidence that
+  put` can write (`artifacts[].owner` only on `action: add`; `artifacts[].kind`
+  and `artifacts[].validator` on `action: add` and `action: revise`; any
+  `artifacts[].owner` change on an existing id is always a hand edit). A hand
+  edit to `repository.canonical_remote` in `.protobot/project.yaml` is a
+  finding. `ears-manager check` exiting 0 is not evidence that
   `repository.canonical_remote` or `artifacts[]` metadata (`artifacts[].owner`,
   `artifacts[].validator`, and `artifacts[].kind`) were not edited by hand.
 - Write the review to `review-<PR number>.md` in the repository root. Do not
