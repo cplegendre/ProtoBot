@@ -16,6 +16,20 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
 - Fetch the PR with `gh pr view` and `gh pr diff`. Record the head SHA, the
   base branch, and the merge base. Every line number in the review refers to
   the head SHA.
+- Check CI status on the PR head with `gh pr checks`. Failing CI checks,
+  including `Specification store check`, belong in the review verdict with
+  the blocking comments or as `chore`.
+- Before conducting detailed specification analysis, require a checkout or
+  worktree of the recorded PR head and run `ears-manager check`. Verify that
+  `ears-manager check` emits neither `DEFAULT_MOVED` nor `BASE_COMMIT_STALE`.
+  `DEFAULT_MOVED` or `BASE_COMMIT_STALE` emitted by `ears-manager check` is
+  a blocking finding. Do not treat a `check` pass on the base branch as
+  evidence.
+  - `DEFAULT_MOVED` or `BASE_COMMIT_STALE` emitted by `ears-manager check`
+    (require a checkout or worktree of the recorded PR head before `check`;
+    a working-tree `check` on the base branch is not evidence) is a blocking
+    finding. Record that blocking finding before conducting detailed
+    specification analysis.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
@@ -56,6 +70,15 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     in `AGENTS.md` identifies staleness in a registered specification artifact,
     raise a staleness finding that prescribes `ears-manager artifact put`, not
     an edit by hand.
+- When a PR modifies `.protobot/project.yaml`, inspect the diff for a hand
+  edit to `owner`, `validator`, `kind`, or `repository.canonical_remote` in
+  `.protobot/project.yaml`. Rule 5 of "Rules for creating or modifying
+  specification documents" in `AGENTS.md` forbids a hand edit to
+  `.protobot/project.yaml`. `ears-manager check` is not evidence that
+  `owner`, `validator`, `kind`, or `repository.canonical_remote` were not
+  edited by hand. A hand edit to `owner`, `validator`, `kind`, or
+  `repository.canonical_remote` in `.protobot/project.yaml` is a finding,
+  even when `ears-manager check` exits 0.
 - Write the review to `review-<PR number>.md` in the repository root. Do not
   commit it, do not post it, do not push.
 
@@ -64,7 +87,9 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
 1. Header: PR link, head and base SHAs, author, review date, files touched.
 2. Verdict: approve or request changes, then the blocking comments as a
    list, one line each: ID and title. Then any `chore`, then praise, then
-   any `thought`. Nothing else.
+   any `thought`. Nothing else. Failing CI checks, including
+   `Specification store check`, belong in the review verdict with the
+   blocking comments or as `chore`.
 3. Comments, grouped in this order: blocking; non-blocking issues and
    suggestions; todos, nitpicks, and questions; other files. Inside a group,
    keep file order.
@@ -115,7 +140,10 @@ The Drafting Table agent creates and refines backlog requests
 - Post only what the author can act on. A check that found nothing (the
   branch is behind `main`, the merge is clean, no stale wording is left)
   goes in the "What was checked" section of the local document, never in
-  the posted review or its comments.
+  the posted review or its comments. `DEFAULT_MOVED` or `BASE_COMMIT_STALE`
+  emitted by `ears-manager check` (require a checkout or worktree of the
+  recorded PR head before `check`; a working-tree `check` on the base branch
+  is not evidence) is a blocking finding, not a check that found nothing.
 - Problem first, then evidence, then fix. Say what is wrong before why.
 - Every fix must make the design or the code simpler or more complete. Drop
   a proposal that adds more than it removes.
