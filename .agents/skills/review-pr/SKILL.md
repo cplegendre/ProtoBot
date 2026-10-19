@@ -20,39 +20,46 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   including `Specification store check`, belong in the review verdict with
   the blocking comments or as `chore`. Do not treat pending CI checks as
   passing.
-- Before conducting detailed specification analysis, follow a single trusted
+- Before detailed specification analysis, follow a single trusted
   freshness sequence: inspect the PR diff for `repository.canonical_remote` or
-  `repository.default_branch` changes before any fetch. If the PR diffs
-  `repository.canonical_remote` or `repository.default_branch`, treat it as a
-  blocking hand-edit finding, do not run `repo_state` on the PR-head tree (SCM
-  `repo_state` reads `.protobot/project.yaml` and is safe only when those two
-  fields are unchanged versus the base branch), and do not treat
-  `ears-manager check` on the PR-head tree or CI `Specification store check`
-  on the recorded head as freshness evidence (both evaluate against the
-  untrusted `.protobot/project.yaml` in the PR-head tree). If freshness must
-  still be verified when either field diffs, run the pinned sequence in a
-  throwaway worktree where only those two fields are overlaid from the base
-  branch's `.protobot/project.yaml`. When those two fields are unchanged versus
-  the base branch, make the CI sequence the only allowed freshness sync: check
-  out (or worktree) the recorded PR head, run
-  `git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`,
-  then `git checkout --detach HEAD`, then
-  `git update-ref refs/heads/main FETCH_HEAD`, then run `ears-manager check`
-  (CI order: fetch, detach, update-ref). Refuse to `update-ref` or treat
-  `ears-manager check` as a freshness result unless that fetch exits 0. Do not
-  reuse a pre-existing `FETCH_HEAD`. If fetch is unavailable, do not claim
-  freshness from local `check`; require a completed `Specification store check`
-  on the recorded head or raise a blocking unverified-freshness finding. Do not
-  present detach as an alternative to checking out the PR head, and do not
-  treat a `check` that ran against any other worktree as a freshness result.
-  Do not treat the GitHub PR base SHA, the merge-base, a fast-forward of a
-  local `main`, or an unsynchronized local default-branch ref as the freshness
-  target. Verify that it emits none of `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`,
-  or `BASE_COMMIT_STALE`. Any of `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or
-  `BASE_COMMIT_STALE` emitted by `ears-manager check` is a blocking finding.
-  Do not treat a `check` pass on the base branch as evidence. A local
-  `ears-manager check` pass is not evidence of freshness unless the local
-  default branch ref is synchronized with the canonical remote.
+  `repository.default_branch` changes before any fetch, splitting into exclusive
+  cases with no global fallback:
+  - When `repository.canonical_remote` and `repository.default_branch` are
+    unchanged versus the base branch: make the CI sequence the only allowed
+    freshness sync. Restrict CI `update-ref refs/heads/main` to a throwaway
+    clone, or a worktree where `git worktree list` shows `main` is not checked
+    out anywhere (the same precondition CI obtains by detaching); do not run
+    `update-ref` from a sibling `.worktrees/` PR checkout while the primary tree
+    remains on `main`. The only freshness result is `ears-manager check` after
+    checking out the recorded PR head, running
+    `git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`
+    (refuse update-ref or check as freshness unless fetch exits 0;
+    do not reuse `FETCH_HEAD`), `git checkout --detach HEAD` (not as a
+    substitute for checking out the PR head), and
+    `git update-ref refs/heads/main FETCH_HEAD` (CI order: fetch, detach,
+    update-ref). Match CI before treating local `ears-manager check` as
+    freshness: after fetch and `update-ref`, read `stores.change_sets` from
+    `refs/heads/main:.protobot/project.yaml` (fallback only if absent on `main`)
+    and fail closed if the PR-head value differs (do not overlay-and-check with
+    the PR's store path), then run `ears-manager check`. If fetch is unavailable,
+    require a completed CI `Specification store check` on that head or raise a
+    blocking unverified-freshness finding (or wait for completed
+    `Specification store check`). Do not treat a `check` from another worktree,
+    the PR base SHA, merge-base, fast-forward of `main`, unsynchronized
+    default-branch ref, or base-branch pass as freshness evidence. Verify that
+    `ears-manager check` emits none of `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`,
+    or `BASE_COMMIT_STALE` (any emitted is a blocking finding).
+  - When `repository.canonical_remote` or `repository.default_branch` diffs
+    versus the base branch: treat it as a blocking hand-edit finding, do not
+    run `repo_state` on the PR-head tree (safe only when both fields are
+    unchanged versus the base branch), and do not use PR-head `check` or CI as
+    freshness; instead, if freshness is still required, overlay those two
+    fields from the base branch's `.protobot/project.yaml` after PR-head
+    checkout/detach, pin `stores.change_sets` from the base/default branch as
+    well as the two repository fields (do not overlay-and-check with the PR's
+    store path, or wait for completed `Specification store check`), then run
+    the same fetch/detach/update-ref/`check` sequence in a throwaway clone or
+    worktree where `git worktree list` shows `main` is not checked out anywhere.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
