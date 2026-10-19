@@ -24,15 +24,17 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   freshness sequence: inspect the PR diff for `repository.canonical_remote` or
   `repository.default_branch` changes before any fetch. If the PR diffs
   `repository.canonical_remote` or `repository.default_branch`, treat it as a
-  hand-edit finding, do not run `repo_state` on the PR-head tree, and do not
-  use `ears-manager check` on that tree as a freshness result (same
-  untrusted-field rule as `repo_state`). Keep the hand-edit finding, and take
-  freshness only from the pinned fetch plus `check` against the base-branch
-  `repository.default_branch` (or from CI `Specification store check` on the
-  recorded head). SCM `repo_state` reads `.protobot/project.yaml` and is safe
-  only when those two fields are unchanged versus the base branch. Make the CI
-  sequence the only allowed freshness sync: check out (or worktree) the
-  recorded PR head, run
+  blocking hand-edit finding, do not run `repo_state` on the PR-head tree (SCM
+  `repo_state` reads `.protobot/project.yaml` and is safe only when those two
+  fields are unchanged versus the base branch), and do not treat
+  `ears-manager check` on the PR-head tree or CI `Specification store check`
+  on the recorded head as freshness evidence (both evaluate against the
+  untrusted `.protobot/project.yaml` in the PR-head tree). If freshness must
+  still be verified when either field diffs, run the pinned sequence in a
+  throwaway worktree where only those two fields are overlaid from the base
+  branch's `.protobot/project.yaml`. When those two fields are unchanged versus
+  the base branch, make the CI sequence the only allowed freshness sync: check
+  out (or worktree) the recorded PR head, run
   `git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`,
   then `git checkout --detach HEAD`, then
   `git update-ref refs/heads/main FETCH_HEAD`, then run `ears-manager check`
@@ -92,13 +94,13 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     raise a staleness finding that prescribes `ears-manager artifact put`, not
     an edit by hand.
 - When a PR modifies `.protobot/project.yaml`, inspect the diff for a hand
-  edit to `repository.canonical_remote` or `artifacts[]` metadata
-  (`artifacts[].owner`, `artifacts[].validator`, and `artifacts[].kind`). Rule 5
-  of "Rules for creating or modifying specification documents" in `AGENTS.md`
-  forbids a hand edit to `.protobot/project.yaml`. Diffs to `artifacts[]`
-  metadata (`artifacts[].owner`, `artifacts[].validator`, and
-  `artifacts[].kind`) in `.protobot/project.yaml` are hand-edit findings unless
-  the proposed-change-set test passes (for each modified artifact entry,
+  edit to `repository.canonical_remote`, `repository.default_branch`, or
+  `artifacts[]` metadata (`artifacts[].owner`, `artifacts[].validator`, and
+  `artifacts[].kind`). Rule 5 of "Rules for creating or modifying specification
+  documents" in `AGENTS.md` forbids a hand edit to `.protobot/project.yaml`.
+  Diffs to `artifacts[]` metadata (`artifacts[].owner`, `artifacts[].validator`,
+  and `artifacts[].kind`) in `.protobot/project.yaml` are hand-edit findings
+  unless the proposed-change-set test passes (for each modified artifact entry,
   resolving `artifacts[].id` in `.protobot/project.yaml`, require a change-set
   manifest under `.protobot/change-sets/` (count a change-set only when
   working-tree `ears-manager change-set show` (no `--at`), after the PR head is
@@ -112,10 +114,11 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   put` can write (`artifacts[].owner` only on `action: add`; `artifacts[].kind`
   and `artifacts[].validator` on `action: add` and `action: revise`; any
   `artifacts[].owner` change on an existing id is always a hand edit). A hand
-  edit to `repository.canonical_remote` in `.protobot/project.yaml` is a
-  finding. `ears-manager check` exiting 0 is not evidence that
-  `repository.canonical_remote` or `artifacts[]` metadata (`artifacts[].owner`,
-  `artifacts[].validator`, and `artifacts[].kind`) were not edited by hand.
+  edit to `repository.canonical_remote` or `repository.default_branch` in
+  `.protobot/project.yaml` is a finding. `ears-manager check` exiting 0 is not
+  evidence that `repository.canonical_remote`, `repository.default_branch`, or
+  `artifacts[]` metadata (`artifacts[].owner`, `artifacts[].validator`, and
+  `artifacts[].kind`) were not edited by hand.
 - Write the review to `review-<PR number>.md` in the repository root. Do not
   commit it, do not post it, do not push.
 
