@@ -24,25 +24,33 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   freshness sequence: inspect the PR diff for `repository.canonical_remote` or
   `repository.default_branch` changes before any fetch. If the PR diffs
   `repository.canonical_remote` or `repository.default_branch`, treat it as a
-  hand-edit finding and do not run `repo_state` on the PR-head tree. SCM
-  `repo_state` reads `.protobot/project.yaml` and is safe only when those two
-  fields are unchanged versus the base branch. Make the CI sequence the only
-  allowed freshness sync: check out (or worktree) the recorded PR head, then
-  `git checkout --detach HEAD`, then fetch `repository.default_branch` from the
-  canonical remote using the pinned command in
-  `.github/workflows/ci-workflow.yaml`
-  (`git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`),
-  then `git update-ref refs/heads/main FETCH_HEAD`, then run
-  `ears-manager check`. Do not present detach as an alternative to checking out
-  the PR head, and do not treat a `check` that ran against any other worktree as
-  a freshness result. Do not treat the GitHub PR base SHA, the merge-base, a
-  fast-forward of a local `main`, or an unsynchronized local default-branch ref
-  as the freshness target. Verify that it emits none of `BASE_NOT_ON_DEFAULT`,
-  `DEFAULT_MOVED`, or `BASE_COMMIT_STALE`. Any of `BASE_NOT_ON_DEFAULT`,
-  `DEFAULT_MOVED`, or `BASE_COMMIT_STALE` emitted by `ears-manager check` is a
-  blocking finding. Do not treat a `check` pass on the base branch as evidence.
-  A local `ears-manager check` pass is not evidence of freshness unless the
-  local default branch ref is synchronized with the canonical remote.
+  hand-edit finding, do not run `repo_state` on the PR-head tree, and do not
+  use `ears-manager check` on that tree as a freshness result (same
+  untrusted-field rule as `repo_state`). Keep the hand-edit finding, and take
+  freshness only from the pinned fetch plus `check` against the base-branch
+  `repository.default_branch` (or from CI `Specification store check` on the
+  recorded head). SCM `repo_state` reads `.protobot/project.yaml` and is safe
+  only when those two fields are unchanged versus the base branch. Make the CI
+  sequence the only allowed freshness sync: check out (or worktree) the
+  recorded PR head, run
+  `git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`,
+  then `git checkout --detach HEAD`, then
+  `git update-ref refs/heads/main FETCH_HEAD`, then run `ears-manager check`
+  (CI order: fetch, detach, update-ref). Refuse to `update-ref` or treat
+  `ears-manager check` as a freshness result unless that fetch exits 0. Do not
+  reuse a pre-existing `FETCH_HEAD`. If fetch is unavailable, do not claim
+  freshness from local `check`; require a completed `Specification store check`
+  on the recorded head or raise a blocking unverified-freshness finding. Do not
+  present detach as an alternative to checking out the PR head, and do not
+  treat a `check` that ran against any other worktree as a freshness result.
+  Do not treat the GitHub PR base SHA, the merge-base, a fast-forward of a
+  local `main`, or an unsynchronized local default-branch ref as the freshness
+  target. Verify that it emits none of `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`,
+  or `BASE_COMMIT_STALE`. Any of `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or
+  `BASE_COMMIT_STALE` emitted by `ears-manager check` is a blocking finding.
+  Do not treat a `check` pass on the base branch as evidence. A local
+  `ears-manager check` pass is not evidence of freshness unless the local
+  default branch ref is synchronized with the canonical remote.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
