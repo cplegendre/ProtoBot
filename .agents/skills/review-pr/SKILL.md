@@ -28,38 +28,43 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     unchanged versus the base branch: make the CI sequence the only allowed
     freshness sync. Restrict CI `update-ref refs/heads/main` to a throwaway
     clone, or a worktree where `git worktree list` shows `main` is not checked
-    out anywhere (the same precondition CI obtains by detaching); do not run
-    `update-ref` from a sibling `.worktrees/` PR checkout while the primary tree
+    out anywhere; do not run `update-ref` from a checkout while the primary tree
     remains on `main`. The only freshness result is `ears-manager check` after
     checking out the recorded PR head, running
     `git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`
-    (refuse update-ref or check as freshness unless fetch exits 0;
-    do not reuse `FETCH_HEAD`), `git checkout --detach HEAD` (not as a
-    substitute for checking out the PR head), and
-    `git update-ref refs/heads/main FETCH_HEAD` (CI order: fetch, detach,
-    update-ref). Match CI before treating local `ears-manager check` as
+    (refuse update-ref or check as freshness unless fetch exits 0; do not
+    reuse `FETCH_HEAD`), `git checkout --detach HEAD` (not as a substitute for
+    checking out the PR head), and `git update-ref refs/heads/main FETCH_HEAD`.
+    Match CI explicitly before treating local `ears-manager check` as
     freshness: after fetch and `update-ref`, read `stores.change_sets` from
-    `refs/heads/main:.protobot/project.yaml` (fallback only if absent on `main`)
-    and fail closed if the PR-head value differs (do not overlay-and-check with
-    the PR's store path), then run `ears-manager check`. If fetch is unavailable,
-    require a completed CI `Specification store check` on that head or raise a
-    blocking unverified-freshness finding (or wait for completed
-    `Specification store check`). Do not treat a `check` from another worktree,
-    the PR base SHA, merge-base, fast-forward of `main`, unsynchronized
-    default-branch ref, or base-branch pass as freshness evidence. Verify that
-    `ears-manager check` emits none of `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`,
-    or `BASE_COMMIT_STALE` (any emitted is a blocking finding).
+    `refs/heads/main:.protobot/project.yaml` (use `.protobot/change-sets` only if
+    absent on `main`; if present but unreadable, fail closed rather than using
+    the PR-head store path as fallback); if the PR-head value differs, refuse
+    `check` as freshness (do not overlay-and-check with the PR's store path),
+    then run `ears-manager check`. If fetch is unavailable, require a completed
+    CI `Specification store check` on that head or raise a blocking
+    unverified-freshness finding. Do not treat a `check` from another worktree,
+    PR base SHA, merge-base, fast-forward of `main`, unsynchronized
+    default-branch ref, or base-branch pass as freshness evidence. Any of
+    `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or `BASE_COMMIT_STALE` emitted by
+    `ears-manager check` is a blocking finding.
   - When `repository.canonical_remote` or `repository.default_branch` diffs
     versus the base branch: treat it as a blocking hand-edit finding, do not
     run `repo_state` on the PR-head tree (safe only when both fields are
-    unchanged versus the base branch), and do not use PR-head `check` or CI as
-    freshness; instead, if freshness is still required, overlay those two
-    fields from the base branch's `.protobot/project.yaml` after PR-head
-    checkout/detach, pin `stores.change_sets` from the base/default branch as
-    well as the two repository fields (do not overlay-and-check with the PR's
-    store path, or wait for completed `Specification store check`), then run
-    the same fetch/detach/update-ref/`check` sequence in a throwaway clone or
-    worktree where `git worktree list` shows `main` is not checked out anywhere.
+    unchanged versus the base branch), do not overlay-and-check using the PR
+    store path, and do not treat CI `Specification store check` as freshness
+    evidence (keep CI-as-fallback only in the unchanged-fields case when fetch is
+    unavailable). The only allowed freshness result is overlaying only
+    `repository.canonical_remote` and `repository.default_branch` from the base
+    branch's `.protobot/project.yaml` after PR-head checkout/detach (overlay only
+    those two fields, not `stores.change_sets`) plus the pinned sequence in a
+    throwaway clone or worktree where `git worktree list` shows `main` is not
+    checked out anywhere, subject to CI's store-path gate: after fetch/`update-ref`,
+    read `stores.change_sets` from `refs/heads/main:.protobot/project.yaml` (use
+    `.protobot/change-sets` only if absent on `main`); if present but
+    unreadable, or if the PR-head value differs, raise a blocking finding and
+    refuse `check` as freshness (or raise a blocking unverified-freshness
+    finding).
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
@@ -107,19 +112,12 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   documents" in `AGENTS.md` forbids a hand edit to `.protobot/project.yaml`.
   Diffs to `artifacts[]` metadata (`artifacts[].owner`, `artifacts[].validator`,
   and `artifacts[].kind`) in `.protobot/project.yaml` are hand-edit findings
-  unless the proposed-change-set test passes (for each modified artifact entry,
-  resolving `artifacts[].id` in `.protobot/project.yaml`, require a change-set
-  manifest under `.protobot/change-sets/` (count a change-set only when
-  working-tree `ears-manager change-set show` (no `--at`), after the PR head is
-  checked out, reports `proposed` iff the manifest path is absent from the
-  default-branch tree; if `show --at <pr-head>` is used, require path-absence
-  in addition to `proposed`; do not treat `--at` status alone as evidence of
-  `artifact put`; never treat a path that already exists on the default
-  branch, including a modified `cs-00001.yaml`, as evidence of `artifact put`)
-  to contain an `artifact_operations[]` entry whose `artifact_id` equals that
-  registry id) and the field diff is limited to changes `ears-manager artifact
-  put` can write (`artifacts[].owner` only on `action: add`; `artifacts[].kind`
-  and `artifacts[].validator` on `action: add` and `action: revise`; any
+  unless the proposed-change-set test already used for `artifact put` above
+  passes for each modified artifact entry (matching
+  `artifact_operations[].artifact_id` in a proposed change-set manifest) and
+  the field diff is limited to changes `ears-manager artifact put` can write
+  (`artifacts[].owner` only on `action: add`; `artifacts[].kind` and
+  `artifacts[].validator` on `action: add` and `action: revise`; any
   `artifacts[].owner` change on an existing id is always a hand edit). A hand
   edit to `repository.canonical_remote` or `repository.default_branch` in
   `.protobot/project.yaml` is a finding. `ears-manager check` exiting 0 is not
