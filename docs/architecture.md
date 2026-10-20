@@ -490,7 +490,8 @@ components.
   `ears-manager check` also compares registered artifact paths and
   canonical content with the default-branch tree, requiring a matching
   `artifact_id` in `artifact_operations[]` in a proposed change set for
-  each delta and rejecting unregistration.
+  each delta and rejecting unregistration of an artifact-registry entry
+  present on the default branch.
 - **Merge strategy:** Merge commits (not squash or rebase) to
   preserve the iteration DAG for evaluability.
 
@@ -851,11 +852,12 @@ EARS requirements, interface definitions, change-set manifests
 — live in the project's Git repository. `ears-manager` is the
 exclusive write gate. The storage format is abstracted behind
 `ears-manager`'s CLI; callers never parse specification files
-directly. `ears-manager check` validates artifact digests, requires
-proposed `artifact_operations[]` records for registered path or
-canonical-content deltas, and rejects unregistration of an artifact
-registered on the default branch. This establishes manifest
-association, not proof that `artifact put` was invoked.
+directly. `ears-manager check` validates artifact digests, requires an
+`artifact_operations[]` entry with the same `artifact_id` in any proposed
+change set for each registered path or canonical-content delta, and
+rejects unregistration of an artifact registered on the default branch.
+This establishes manifest association, not proof that `artifact put` was
+invoked.
 
 **Where it lives:** The project repository, under paths
 registered in `.protobot/project.yaml`.

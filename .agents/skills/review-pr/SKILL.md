@@ -40,17 +40,23 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   [.protobot/project.yaml](../../../.protobot/project.yaml), inspect the
   project configuration under Rule 5 of the specification-document rules in
   `AGENTS.md` and flag any hand edit, even if no registered specification
-  artifact is changed. Metadata-only changes to an artifact-registry entry
-  do not by themselves require an artifact operation. Findings should
-  include each listed diagnostic; any hand edit identified while inspecting
+  artifact is changed. Run `ears-manager check` on a checkout or worktree of
+  the recorded PR head; a check on the base branch is not evidence. Require
+  it to pass without `artifact.digest_mismatch`, `artifact.operation_missing`,
+  or `artifact.unregistered`. Metadata-only changes to an artifact-registry
+  entry do not by themselves require an artifact operation. Findings should
+  include each listed diagnostic when a PR creates or modifies a registered
+  specification artifact, or when Rule 4 identifies staleness in a registered
+  specification artifact; any hand edit identified while inspecting
   a registered specification artifact when a PR creates or modifies a
   registered specification artifact, or when Rule 4 identifies staleness in
-  a registered specification artifact; any hand edit identified in
-  [.protobot/project.yaml](../../../.protobot/project.yaml) whenever a PR
-  modifies [.protobot/project.yaml](../../../.protobot/project.yaml), even if
-  no registered specification artifact is changed; and, when Rule 4
-  identifies staleness in a registered specification artifact, a staleness
-  finding that prescribes `ears-manager artifact put`, not a hand edit.
+  a registered specification artifact; each listed diagnostic and any hand
+  edit identified in [.protobot/project.yaml](../../../.protobot/project.yaml)
+  whenever a PR modifies
+  [.protobot/project.yaml](../../../.protobot/project.yaml), even if no
+  registered specification artifact is changed; and, when Rule 4 identifies
+  staleness in a registered specification artifact, a staleness finding that
+  prescribes `ears-manager artifact put`, not a hand edit.
 - Write the review to `review-<PR number>.md` in the repository root. Do not
   commit it, do not post it, do not push.
 

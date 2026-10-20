@@ -1,7 +1,7 @@
 {
   "version": "1",
   "generated_by": "skillsaw 0.21.0",
-  "generated_at": "2026-10-20T15:46:08.822168+00:00",
+  "generated_at": "2026-10-20T16:25:22.061005+00:00",
   "violations": [
     {
       "fingerprint": "d0aa041aff2100fd",
@@ -40,14 +40,14 @@
       "rule_id": "content-section-length",
       "file_path": "AGENTS.md",
       "line": 136,
-      "message": "Section 'Rules for creating or modifying specification documents' is ~1250 tokens (max recommended: 500)",
+      "message": "Section 'Rules for creating or modifying specification documents' is ~1354 tokens (max recommended: 500)",
       "severity": "info"
     },
     {
       "fingerprint": "2838fa04ecdf928f",
       "rule_id": "content-section-length",
       "file_path": "AGENTS.md",
-      "line": 271,
+      "line": 276,
       "message": "Section 'Aligning skills with the specification hierarchy' is ~503 tokens (max recommended: 500)",
       "severity": "info"
     },
@@ -56,7 +56,7 @@
       "rule_id": "content-section-length",
       "file_path": ".agents/skills/review-pr/SKILL.md",
       "line": 14,
-      "message": "Section 'Process' is ~678 tokens (max recommended: 500)",
+      "message": "Section 'Process' is ~781 tokens (max recommended: 500)",
       "severity": "info"
     },
     {
@@ -88,14 +88,14 @@
       "rule_id": "content-section-length",
       "file_path": "docs/architecture.md",
       "line": 460,
-      "message": "Section 'Project Repository' is ~566 tokens (max recommended: 500)",
+      "message": "Section 'Project Repository' is ~581 tokens (max recommended: 500)",
       "severity": "info"
     },
     {
       "fingerprint": "39bd5528950f9ce2",
       "rule_id": "content-section-length",
       "file_path": "docs/architecture.md",
-      "line": 511,
+      "line": 512,
       "message": "Section 'Job Site Handoff Boundary' is ~911 tokens (max recommended: 500)",
       "severity": "info"
     },
@@ -103,7 +103,7 @@
       "fingerprint": "7a47180e53e905ba",
       "rule_id": "content-section-length",
       "file_path": "docs/architecture.md",
-      "line": 703,
+      "line": 704,
       "message": "Section 'Governed tool integrations' is ~1442 tokens (max recommended: 500)",
       "severity": "info"
     },
@@ -111,7 +111,7 @@
       "fingerprint": "118f4daf88827566",
       "rule_id": "content-section-length",
       "file_path": "docs/architecture.md",
-      "line": 994,
+      "line": 996,
       "message": "Section 'Environmental Constraints' is ~665 tokens (max recommended: 500)",
       "severity": "info"
     },
@@ -119,7 +119,7 @@
       "fingerprint": "d2b4f8ad13e25933",
       "rule_id": "content-section-length",
       "file_path": "docs/architecture.md",
-      "line": 1047,
+      "line": 1049,
       "message": "Section 'Related Documents' is ~553 tokens (max recommended: 500)",
       "severity": "info"
     },
@@ -274,6 +274,15 @@
       "line": 260,
       "message": "Weak language (vagueness): 'correctly' \u2014 Remove 'correctly' \u2014 describe what correct behavior looks like",
       "severity": "info"
+    },
+    {
+      "fingerprint": "9ac2052ca695ae1d",
+      "rule_id": "context-budget",
+      "file_path": "AGENTS.md",
+      "message": "Estimated 4,036 tokens exceeds agents-md warn limit of 4,000",
+      "severity": "warning",
+      "value": 4036,
+      "baseline_mode": "ceiling"
     }
   ]
 }

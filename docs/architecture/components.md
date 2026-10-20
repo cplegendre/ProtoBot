@@ -441,11 +441,12 @@ It is used by these callers:
   and [open question Q19][q19].
 - **CI** — `ears-manager check` runs on every branch push to
   validate that spec files are well-formed, all EARS statements
-  match required templates, referential integrity holds, registered
-  artifact path/canonical-content deltas have a matching
-  `artifact_operations[]` entry in a proposed change set, registered
-  artifacts remain registered, and each proposed change set's
-  `base_commit` is the fetched default-branch head.
+  match required templates, referential integrity holds, every registered
+  artifact path/canonical-content delta has a matching
+  `artifact_operations[]` entry with the same `artifact_id` in a proposed
+  change set, every artifact registered on the default branch remains
+  registered, and each proposed change set's `base_commit` matches the
+  resolved default-branch head.
 - **Job Site Materializer** — reads the approved manifest and requirement
   records at the immutable specification commit recorded in a build
   work-item contract.

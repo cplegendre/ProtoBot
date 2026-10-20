@@ -1108,7 +1108,7 @@ carries no diagnostics. A diagnostic arrives in `error.diagnostics`.
 | `project.store_digest_unreadable` | Diagnostic | A visible entry of a structured store is a symlink, a subdirectory, or not a `.yaml` file, or the store cannot be read | `4` |
 | `project.store_digest_mismatch` | Diagnostic | The visible YAML file set of a structured store does not match its recorded digest | `4` |
 | `artifact.digest_mismatch` | Diagnostic | Registered artifact content does not match its canonical digest | `4` |
-| `artifact.operation_missing` | Diagnostic | A registered artifact path or canonical-content delta has no matching `artifact_id` in any proposed change set's `artifact_operations[]` | `4` |
+| `artifact.operation_missing` | Diagnostic | A registered artifact path or canonical text delta has no matching `artifact_id` in any proposed change set's `artifact_operations[]` | `4` |
 | `artifact.unregistered` | Diagnostic | An artifact registered on the default branch is absent from the current registry | `4` |
 | `BASE_NOT_ON_DEFAULT` | Both | A proposed manifest's `base_commit` is not a full commit ID reachable from the default-branch head | `4` |
 | `DEFAULT_MOVED` | Both | The default-branch head is not reachable from `HEAD` | `5` |
