@@ -436,14 +436,25 @@ row that depends on the guard:
 | Tool of another MCP server | Not offered | The user's own configuration |
 | Subagent | `task` not offered | Not applicable |
 
-Later integrity and CI layers catch unauthorized persistent edits to
-registered paths, and configured-store changes only while their recorded
-digests remain intact; they do not establish writer provenance or generally
-check `.protobot/` control files, reserved harness controls, or Git metadata.
-They also do not enforce shell grammar, argument values, variable expansion,
-or file-source provenance. In particular, they do not make an allowed shell
-command safe when the plugin is unavailable; see [What the harness layer
-stops][layer-stops].
+Later integrity and CI layers catch registered-artifact digest mismatches,
+registered artifact path/canonical-content deltas without a matching proposed
+operation, and unregistration. Artifact path/content deltas without an
+operation are caught even if their digest is rewritten; configured-store
+integrity checks catch changes only while their recorded digests remain intact.
+These checks do not establish writer provenance or generally check
+`.protobot/` control files, reserved harness controls, the selected manifest,
+or Git metadata. Coordinated manual edits to artifact content and its registry
+digest, plus a manifest containing a matching operation, can pass. Hand edits to
+`repository.default_branch`, or to
+`repository.canonical_remote` when the remote-tracking fallback is used, can
+retarget the baseline selected from the working-tree project configuration.
+The resolver uses the local default ref first, falls back to a canonical
+remote-tracking ref, and does not fetch. Rule 5 in `AGENTS.md` prohibits
+hand-editing `.protobot/project.yaml`; Rule 6 requires reviewers to inspect it
+and flag hand edits. These layers also do not enforce shell grammar, argument
+values, variable expansion, or file-source provenance. In particular, they do
+not make an allowed shell command safe when the plugin is unavailable; see
+[What the harness layer stops][layer-stops].
 
 ---
 

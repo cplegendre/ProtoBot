@@ -1,0 +1,19 @@
+# managed by ears-manager; do not edit by hand
+id: CS-00004
+base_commit: 131b92678ed675dd7bd82c4e8c547f51aa3feb8a
+intent: Enforce registered artifact operation checks
+operations: []
+artifact_operations:
+    - action: revise
+      artifact_id: architecture
+affected_interfaces:
+    - protobot-cli
+implementation_required: true
+implementation_rationale: Validate registered artifact deltas against proposed change-set operations.
+impact_assessment:
+    - requirement_id: REQ-CLI-00001
+      disposition: applicable
+      rationale: Adds deterministic validation of registered artifact deltas to the CLI check contract.
+      origin: mechanical
+impact_assessment_base_commit: 131b92678ed675dd7bd82c4e8c547f51aa3feb8a
+created: "2026-10-20T12:00:00Z"
