@@ -42,9 +42,10 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     unreadable, or if the PR-head value differs, raise a blocking finding and
     stop; do not run `ears-manager check` using the PR-head store path (do not
     overlay-and-check with the PR's store path). Only after an exact path match,
-    run `ears-manager check`. If fetch is unavailable, require a completed
-    CI `Specification store check` on that head or raise a blocking
-    unverified-freshness finding. Do not treat a `check` from another worktree,
+    run `ears-manager check`. If fetch is unavailable, require a successful
+    CI `Specification store check` on that head; treat missing, pending,
+    failed, skipped, cancelled, or neutral conclusions as blocking
+    unverified-freshness findings. Do not treat a `check` from another worktree,
     PR base SHA, merge-base, fast-forward of `main`, unsynchronized
     default-branch ref, or base-branch pass as freshness evidence. Any of
     `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or `BASE_COMMIT_STALE` emitted by
@@ -60,8 +61,10 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     after PR-head checkout/detach (overlay only those two fields, not
     `stores.change_sets`), complete the pinned fetch/detach/`update-ref`
     sequence in a throwaway clone or worktree where `git worktree list` shows
-    `main` is not checked out anywhere, apply the same store-path gate, and then
-    require `ears-manager check` in that same throwaway clone/worktree. Treat
+    `main` is not checked out anywhere; if that fetch is unavailable or exits
+    non-zero, raise the same blocking unverified-freshness finding and stop
+    detailed analysis. Apply the same store-path gate, and then require
+    `ears-manager check` in that same throwaway clone/worktree. Treat
     `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, and `BASE_COMMIT_STALE` as blocking
     findings. Do not accept overlay, fetch, `update-ref`, or path-match alone
     as freshness evidence.
