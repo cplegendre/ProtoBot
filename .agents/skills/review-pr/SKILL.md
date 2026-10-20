@@ -47,9 +47,9 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     failed, skipped, cancelled, or neutral conclusions as blocking
     unverified-freshness findings. Do not treat a `check` from another worktree,
     PR base SHA, merge-base, fast-forward of `main`, unsynchronized
-    default-branch ref, or base-branch pass as freshness evidence. Any of
-    `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or `BASE_COMMIT_STALE` emitted by
-    `ears-manager check` is a blocking finding.
+    default-branch ref, or base-branch pass as freshness evidence. Treat
+    post-fetch `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or
+    `BASE_COMMIT_STALE` as blocking.
   - When `repository.canonical_remote` or `repository.default_branch` diffs
     versus the base branch: treat it as a blocking hand-edit finding, do not
     run `repo_state` on the PR-head tree (safe only when both fields are
@@ -64,10 +64,9 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     `main` is not checked out anywhere; if that fetch is unavailable or exits
     non-zero, raise the same blocking unverified-freshness finding and stop
     detailed analysis. Apply the same store-path gate, and then require
-    `ears-manager check` in that same throwaway clone/worktree. Treat
-    `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, and `BASE_COMMIT_STALE` as blocking
-    findings. Do not accept overlay, fetch, `update-ref`, or path-match alone
-    as freshness evidence.
+    `ears-manager check` in that same throwaway clone/worktree. Treat the
+    same post-fetch freshness diagnostics as blocking. Do not accept overlay,
+    fetch, `update-ref`, or path-match alone as freshness evidence.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
@@ -99,7 +98,9 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   - Inspect the registered specification artifact and `.protobot/project.yaml`
     to ensure neither was edited by hand. A registered specification artifact
     or `.protobot/project.yaml` edited by hand is a finding.
-  - Confirm `ears-manager check` passes without `artifact.digest_mismatch`.
+  - Confirm the working-tree `ears-manager check` passes without
+    `artifact.digest_mismatch`; on the CI-freshness fallback, ignore only the
+    later check's stale-local-ref freshness diagnostics.
   - A missing `ears-manager artifact put`, when a PR creates or modifies a
     registered specification artifact or when Rule 4 of "Rules for creating
     or modifying specification documents" in `AGENTS.md` identifies staleness
@@ -188,9 +189,8 @@ The Drafting Table agent creates and refines backlog requests
 - Post only what the author can act on. A check that found nothing (the
   branch is up to date with `main`, the merge is clean, no stale wording is
   left) goes in the "What was checked" section of the local document, never
-  in the posted review or its comments. `BASE_NOT_ON_DEFAULT`,
-  `DEFAULT_MOVED`, or `BASE_COMMIT_STALE` emitted by `ears-manager check` is
-  a blocking finding, not a check that found nothing.
+  in the posted review or its comments. Post-fetch freshness diagnostics are
+  blocking, not checks that found nothing.
 - Problem first, then evidence, then fix. Say what is wrong before why.
 - Every fix must make the design or the code simpler or more complete. Drop
   a proposal that adds more than it removes.
