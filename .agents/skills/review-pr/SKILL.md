@@ -37,11 +37,12 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     checking out the PR head), and `git update-ref refs/heads/main FETCH_HEAD`.
     Match CI explicitly before treating local `ears-manager check` as
     freshness: after fetch and `update-ref`, read `stores.change_sets` from
-    `refs/heads/main:.protobot/project.yaml` (use `.protobot/change-sets` only if
-    absent on `main`; if present but unreadable, fail closed rather than using
-    the PR-head store path as fallback); if the PR-head value differs, refuse
-    `check` as freshness (do not overlay-and-check with the PR's store path),
-    then run `ears-manager check`. If fetch is unavailable, require a completed
+    `refs/heads/main:.protobot/project.yaml`, using `.protobot/change-sets` only
+    if that file is absent on `main`. If the file exists but the field is
+    unreadable, or if the PR-head value differs, raise a blocking finding and
+    stop; do not run `ears-manager check` using the PR-head store path (do not
+    overlay-and-check with the PR's store path). Only after an exact path match,
+    run `ears-manager check`. If fetch is unavailable, require a completed
     CI `Specification store check` on that head or raise a blocking
     unverified-freshness finding. Do not treat a `check` from another worktree,
     PR base SHA, merge-base, fast-forward of `main`, unsynchronized
@@ -54,17 +55,16 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     unchanged versus the base branch), do not overlay-and-check using the PR
     store path, and do not treat CI `Specification store check` as freshness
     evidence (keep CI-as-fallback only in the unchanged-fields case when fetch is
-    unavailable). The only allowed freshness result is overlaying only
-    `repository.canonical_remote` and `repository.default_branch` from the base
-    branch's `.protobot/project.yaml` after PR-head checkout/detach (overlay only
-    those two fields, not `stores.change_sets`) plus the pinned sequence in a
-    throwaway clone or worktree where `git worktree list` shows `main` is not
-    checked out anywhere, subject to CI's store-path gate: after fetch/`update-ref`,
-    read `stores.change_sets` from `refs/heads/main:.protobot/project.yaml` (use
-    `.protobot/change-sets` only if absent on `main`); if present but
-    unreadable, or if the PR-head value differs, raise a blocking finding and
-    refuse `check` as freshness (or raise a blocking unverified-freshness
-    finding).
+    unavailable). Overlay only `repository.canonical_remote` and
+    `repository.default_branch` from the base branch's `.protobot/project.yaml`
+    after PR-head checkout/detach (overlay only those two fields, not
+    `stores.change_sets`), complete the pinned fetch/detach/`update-ref`
+    sequence in a throwaway clone or worktree where `git worktree list` shows
+    `main` is not checked out anywhere, apply the same store-path gate, and then
+    require `ears-manager check` in that same throwaway clone/worktree. Treat
+    `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, and `BASE_COMMIT_STALE` as blocking
+    findings. Do not accept overlay, fetch, `update-ref`, or path-match alone
+    as freshness evidence.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
@@ -111,19 +111,19 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   `artifacts[].kind`). Rule 5 of "Rules for creating or modifying specification
   documents" in `AGENTS.md` forbids a hand edit to `.protobot/project.yaml`.
   Diffs to `artifacts[]` metadata (`artifacts[].owner`, `artifacts[].validator`,
-  and `artifacts[].kind`) in `.protobot/project.yaml` are hand-edit findings
-  unless the proposed-change-set test already used for `artifact put` above
-  passes for each modified artifact entry (matching
-  `artifact_operations[].artifact_id` in a proposed change-set manifest) and
-  the field diff is limited to changes `ears-manager artifact put` can write
+  or `artifacts[].kind`) in `.protobot/project.yaml` are hand-edit findings
+  unless each modified artifact has a matching
+  `artifact_operations[].artifact_id` in a proposed change-set manifest (using
+  the proposed-change-set test already used for `artifact put` above) and the
+  change is within `ears-manager artifact put`'s action-specific allowed writes
   (`artifacts[].owner` only on `action: add`; `artifacts[].kind` and
   `artifacts[].validator` on `action: add` and `action: revise`; any
-  `artifacts[].owner` change on an existing id is always a hand edit). A hand
-  edit to `repository.canonical_remote` or `repository.default_branch` in
-  `.protobot/project.yaml` is a finding. `ears-manager check` exiting 0 is not
+  `artifacts[].owner` change on an existing artifact id remains a hand edit).
+  A hand edit to `repository.canonical_remote` or `repository.default_branch` in
+  `.protobot/project.yaml` is a finding. A zero-exit `ears-manager check` is not
   evidence that `repository.canonical_remote`, `repository.default_branch`, or
   `artifacts[]` metadata (`artifacts[].owner`, `artifacts[].validator`, and
-  `artifacts[].kind`) were not edited by hand.
+  `artifacts[].kind`) were tool-authored or not edited by hand.
 - Write the review to `review-<PR number>.md` in the repository root. Do not
   commit it, do not post it, do not push.
 
