@@ -98,13 +98,12 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   - Inspect the registered specification artifact and `.protobot/project.yaml`
     to ensure neither was edited by hand. A registered specification artifact
     or `.protobot/project.yaml` edited by hand is a finding.
-  - Confirm the working-tree `ears-manager check` passes without
-    `artifact.digest_mismatch`; on the CI-freshness fallback, ignore only the
-    later check's stale-local-ref freshness diagnostics.
-  - A missing `ears-manager artifact put`, when a PR creates or modifies a
-    registered specification artifact or when Rule 4 of "Rules for creating
-    or modifying specification documents" in `AGENTS.md` identifies staleness
-    in a registered specification artifact, is a finding.
+  - Confirm the later `ears-manager check` has no
+    `artifact.digest_mismatch`; on later checks, ignore
+    `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, `BASE_COMMIT_STALE`, and
+    `project.default_branch_unresolved`; they block only on the post-fetch
+    freshness result or successful CI `Specification store check`.
+  - A missing `ears-manager artifact put` for such a path is a finding.
   - When Rule 4 of "Rules for creating or modifying specification documents"
     in `AGENTS.md` identifies staleness in a registered specification artifact,
     raise a staleness finding that prescribes `ears-manager artifact put`, not
