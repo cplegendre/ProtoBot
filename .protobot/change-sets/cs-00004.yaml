@@ -1,6 +1,6 @@
 # managed by ears-manager; do not edit by hand
 id: CS-00004
-base_commit: 131b92678ed675dd7bd82c4e8c547f51aa3feb8a
+base_commit: a306279de537a4b4f14115cd759bf88bd01aa1fa
 intent: Enforce registered artifact operation checks
 operations: []
 artifact_operations:
@@ -15,5 +15,5 @@ impact_assessment:
       disposition: applicable
       rationale: Adds deterministic validation of registered artifact deltas to the CLI check contract.
       origin: mechanical
-impact_assessment_base_commit: 131b92678ed675dd7bd82c4e8c547f51aa3feb8a
+impact_assessment_base_commit: a306279de537a4b4f14115cd759bf88bd01aa1fa
 created: "2026-10-20T12:00:00Z"
