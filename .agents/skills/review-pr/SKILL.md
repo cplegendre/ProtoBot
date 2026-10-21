@@ -95,14 +95,15 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
     `artifact put`) to contain an `artifact_operations[]` entry whose
     `artifact_id` equals that registry id. Treat a digest-only or content
     change without that proposed operation as a hand edit.
-  - Inspect the registered specification artifact and `.protobot/project.yaml`
-    to ensure neither was edited by hand. A registered specification artifact
-    or `.protobot/project.yaml` edited by hand is a finding.
-  - Confirm the later `ears-manager check` has no
-    `artifact.digest_mismatch`; on later checks, ignore
-    `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, `BASE_COMMIT_STALE`, and
-    `project.default_branch_unresolved`; they block only on the post-fetch
-    freshness result or successful CI `Specification store check`.
+  - Inspect the registered artifact and `.protobot/project.yaml`; a hand edit
+    to either is a finding.
+  - Require digest validation from a check that reaches it. On later checks,
+    ignore only `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, and
+    `BASE_COMMIT_STALE`; they block only on the post-fetch result or a passing
+    CI `Specification store check`. Treat `project.default_branch_unresolved`
+    as incomplete: use the post-fetch throwaway check, a passing CI check, or
+    a rerun with a resolvable default-branch candidate; do not infer digest
+    validity from absent `artifact.digest_mismatch`.
   - A missing `ears-manager artifact put` for such a path is a finding.
   - When Rule 4 of "Rules for creating or modifying specification documents"
     in `AGENTS.md` identifies staleness in a registered specification artifact,
