@@ -133,8 +133,13 @@ func checkState() (projectState, *commandFailure) {
 	}
 	context := specvalidation.ValidationContext{ProposedChangeSets: proposed}
 	result := specvalidation.ValidateProjectWithContext(root, context)
+	var draftFailure *commandFailure
 	if !result.Valid {
-		return projectState{root: root}, failureFromValidation(result, false)
+		validationFailure := failureFromValidation(result, false)
+		if validationFailure == nil || validationFailure.Code != "change_set.assessment_incomplete" {
+			return projectState{root: root}, validationFailure
+		}
+		draftFailure = validationFailure
 	}
 	snapshot, err := specvalidation.LoadWithContext(root, context)
 	if err != nil {
@@ -146,6 +151,12 @@ func checkState() (projectState, *commandFailure) {
 	}
 	if failure := checkProposedBaseFreshness(root, snapshot, proposed, head); failure != nil {
 		return projectState{root: root}, failure
+	}
+	if failure := checkArtifactOperationDeltas(root, snapshot, proposed); failure != nil {
+		return projectState{root: root}, failure
+	}
+	if draftFailure != nil {
+		return projectState{root: root}, draftFailure
 	}
 	return projectState{root: root, snapshot: snapshot, observed: observeSnapshot(root, snapshot), head: head, diagnostics: result.Diagnostics}, nil
 }
@@ -367,17 +378,23 @@ func validateScopedCheck(root string, snapshot specvalidation.Snapshot, targetIn
 		seen[diagnostic] = true
 		unique = append(unique, diagnostic)
 	}
-	if failure := failureFromDiagnostics(unique); failure != nil {
+	draftFailure := failureFromDiagnostics(unique)
+	if draftFailure != nil && draftFailure.Code != "change_set.assessment_incomplete" {
+		return draftFailure
+	}
+	if proposed[targetID] {
+		head, failure := currentCommit(root)
+		if failure != nil {
+			return failure
+		}
+		if failure := checkProposedBaseFreshness(root, snapshot, proposed, head); failure != nil {
+			return failure
+		}
+	}
+	if failure := checkArtifactOperationDeltas(root, snapshot, proposedIDs); failure != nil {
 		return failure
 	}
-	if !proposed[targetID] {
-		return nil
-	}
-	head, failure := currentCommit(root)
-	if failure != nil {
-		return failure
-	}
-	return checkProposedBaseFreshness(root, snapshot, proposed, head)
+	return draftFailure
 }
 
 func isImpactDiagnostic(diagnostic specvalidation.Diagnostic) bool {

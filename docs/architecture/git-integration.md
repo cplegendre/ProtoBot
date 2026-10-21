@@ -171,9 +171,21 @@ This document adds a `repository` block for the Git-facing fields:
 `ears-manager` owns this file and is the only writer
 ([Persistent State](../architecture.md#project-configuration-protobot)).
 The Drafting Table reads it and commits it; it is not meant to edit
-it, and the guard refuses such an edit on the calls it checks. A
-fail-open write can rewrite its digests, which the later checks then
-trust ([File-source arguments][fail-open]).
+it, and the guard refuses such an edit on the calls it checks.
+A fail-open write can rewrite the digests, but `ears-manager check`
+compares the registered artifact path and canonical content with the
+default-branch tree and requires a matching `artifact_id` in
+`artifact_operations[]` in any proposed change set. The check verifies only
+that the delta is represented in a proposed manifest; it does not prove
+`ears-manager artifact put` was invoked. Coordinated manual edits to artifact
+content, its registry digest, and the manifest can pass. Manual edits to
+`repository.default_branch`, or to `repository.canonical_remote` when the
+remote-tracking fallback is used, can retarget the baseline. Both escape
+paths are outside the operation-record guarantee. Rule 5 in `AGENTS.md`
+prohibits hand-editing registered specification artifacts and
+`.protobot/project.yaml`; Rule 6 in `AGENTS.md` requires reviewers to inspect
+them and flag hand edits. File-source provenance remains a separate fail-open
+gap ([File-source arguments][fail-open]).
 The registry cannot record a digest for `project.yaml` itself, so
 `ears-manager check` validates that file structurally instead.
 
@@ -642,8 +654,9 @@ report is a view of the Finding Ledger.
 
 - CI runs `ears-manager check` on every branch push and as the merge gate.
   A bare `check` resolves and validates every proposed change-set manifest in
-  the branch, including its impact assessment and default-branch freshness;
-  interactive callers may pass `--change-set CS-<NNNNN>` to narrow the check.
+  the branch, including artifact-operation consistency, impact assessment,
+  and default-branch freshness; interactive callers may pass
+  `--change-set CS-<NNNNN>` to narrow impact and freshness checks.
   Before `check`, CI fetches `repository.default_branch` from a remote whose
   configured URL equals `repository.canonical_remote`, or creates the local
   default branch, so that `check` can tell approved from proposed change sets
@@ -797,23 +810,41 @@ project; it does not change any rule in this document.
 No component is meant to write a registered specification file
 directly. For the Drafting Table, the guard refuses covered file-writing
 tools and shell calls it checks; a call without a guard decision may still
-write one ([What the harness layer stops][layer-stops]). Outside that
-role, ordinary shell-writer arguments naming a registered file are not
-generally stopped solely because of registration. A registered file edited
-outside `ears-manager` that leaves its registry intact is caught by the
-SCM's pre-stage comparison or `ears-manager check` before it can reach the
-default branch. The optional harness layer and the later controls have
-different coverage; path ownership in CI separately rejects edits outside
-the owning component's paths. A fail-open write that also rewrites the
-digest in `.protobot/project.yaml` remains a recorded gap
-([File-source arguments][fail-open]); review of the pull request is the
-remaining check.
+write one ([What the harness layer stops][layer-stops]). Outside that role,
+ordinary shell-writer arguments naming a registered file are not generally
+stopped solely because of registration. A registered file edited outside
+`ears-manager` that leaves its registry digest stale is caught by digest
+validation and the SCM's pre-stage comparison before it can reach the default
+branch. If a fail-open write also rewrites the digest, `ears-manager check`
+compares the registered artifact path and canonical content with the default-
+branch tree, requires a matching `artifact_id` in `artifact_operations[]` in
+any proposed change set, and rejects unregistration of a default-branch
+artifact. Four layers detect these cases, in order of how early they fire.
+The check verifies manifest association only; it does not prove that
+`ears-manager artifact put` was invoked. Coordinated manual edits to artifact
+content, its registry digest, and the manifest, or hand edits to
+`repository.default_branch`, or to `repository.canonical_remote` when the
+remote-tracking fallback is used, can escape the operation-record guarantee.
+The baseline uses the existing default-branch resolver and settings in the
+working-tree `.protobot/project.yaml`: it uses the local
+`repository.default_branch` ref when that resolves, otherwise a resolved
+remote-tracking ref for `repository.canonical_remote`; `ears-manager` never
+fetches. Rule 5 in `AGENTS.md` prohibits hand-editing registered specification
+artifacts and `.protobot/project.yaml`; Rule 6 in `AGENTS.md` requires
+reviewers to inspect them and flag hand edits. The optional harness layer and
+later controls have different coverage; path ownership in CI separately
+rejects edits outside the owning component's paths. They do not cover an
+indirect `ears-manager` write that leaves a matching operation, or edits to
+`.protobot/` control files, reserved harness controls, or Git metadata. The
+source-file, renamed-executable, and unrecognized-writer routes remain
+explicit residual limits. File-source provenance remains a separate
+fail-open gap ([File-source arguments][fail-open]).
 
 | Layer | Where | Catches |
 | --- | --- | --- |
 | Harness tool permission rules (optional, [#33](agent-harness/adapter-contract.md#what-the-harness-layer-stops)) | The agent's own tool call | File-writing-tool calls to registered paths and direct shell calls covered by the binding or the guard's targeted protected-path checks |
 | Pre-stage digest comparison | The Drafting Table, in the SCM's `commit`, before staging | A registered artifact or structured store whose content no longer matches its governed digest |
-| `ears-manager check` | Branch push and merge gate in CI | Malformed records, artifact or store digest mismatches, dangling references, symmetry and cycle violations |
+| `ears-manager check` | Branch push and merge gate in CI | Malformed records, artifact or store digest mismatches, registered artifact path/canonical-content deltas without a matching proposed `artifact_operations[]` entry, unregistration of a default-branch artifact, dangling references, symmetry and cycle violations |
 | Path ownership in CI | Merge gate | A change that edits files outside the owning component's paths |
 
 ### The pre-stage digest comparison
@@ -853,13 +884,20 @@ before the store digest matches again.
 Unregistered files in the working tree are not an error. They are
 simply never staged by the Drafting Table.
 
-CI repeats the same comparison inside `ears-manager check`, so a
-contributor who bypasses the Drafting Table entirely is still
-caught before merge when the edit leaves the registry intact. A
-fail-open write that also rewrites the digest in
-`.protobot/project.yaml` is a recorded gap and is not caught by those
-layers ([File-source arguments][fail-open]); review of the pull request
-is the remaining check. Path ownership in CI is the last layer.
+CI runs the same digest and operation checks inside `ears-manager check`.
+Therefore, a digest-rewritten artifact edit without a matching proposed
+operation is caught before merge, as is unregistration of a default-branch
+artifact. A matching operation proves only that the delta is represented in
+the manifest; it does not prove `ears-manager artifact put` ran or prevent
+coordinated manual edits to artifact content, its registry digest, and the
+manifest. Nor does it prevent hand edits to `repository.default_branch`, or to
+`repository.canonical_remote` when the remote-tracking fallback is used, that
+retarget the baseline. These two escape paths are outside the operation-record
+guarantee. Rule 5 prohibits hand-editing registered specification artifacts
+and `.protobot/project.yaml`; Rule 6 requires reviewers to inspect them and
+flag hand edits. Path ownership in CI remains a separate layer. File-source
+provenance is still not established by these checks
+([File-source arguments][fail-open]).
 
 ---
 
@@ -988,6 +1026,8 @@ detects with a stable code
 | `project.yaml` is not at the working-tree root | Project resolution | Names both the file location and the working-tree root | Move the session to the correct checkout; the Drafting Table never relocates the file |
 | Store schema version newer than the tool | `ears-manager` reads `schema_versions` | Names the store, the file version, and the supported version | Use the supported version; after v1 adoption, perform any upgrade through a reviewed migration change set |
 | Registered artifact or structured-store digest mismatch | Pre-stage comparison | Names the safe configuration field and mismatch class | Discard the direct edit, or re-apply it through `ears-manager` |
+| Registered artifact path or canonical content differs from the default-branch artifact without a matching proposed operation | `ears-manager check` | `artifact.operation_missing`, naming the artifact-registry entry | Rule 5 prohibits hand-editing `.protobot/project.yaml`; Rule 6 requires reviewers to inspect it and flag hand edits because its settings select the baseline. If the delta is already approved on the canonical remote but the local default branch is behind, reconcile it through SCM `repo_state` and rerun `check`; otherwise record the artifact delta through `ears-manager artifact put` in a proposed change set and rerun `check`. The check does not prove command provenance |
+| Default-branch registered artifact is absent from the current registry | `ears-manager check` | `artifact.unregistered`, naming the artifact-registry entry | Restore the registration through the governed `ears-manager` interface; registered artifacts cannot be unregistered |
 | Registered path or store directory not classified `shared` in the projection manifest | `ears-manager check`, and every `ears-manager` write that validates the full project, including `change-set create` | Names the path, the required class `shared`, and the current class when an entry covers the path | Through a reviewed policy edit of `projection.yaml`, restore the missing `shared` entry, or change the covering entry to `shared`. The Source Control Manager keeps that edit out of any change-set commit, so the person commits it apart and merges it through its own review; `ears-manager` commands then succeed. `ears-manager` does not restore or change another path's entry, because that entry would read as a policy edit mixed into the change set |
 | Branch `cs/<nnnnn>-<slug>` already exists | Branch creation | Names the branch and whether it is local, remote, or both | Resume that change set, or create the change set under a new ID |
 | Default branch has moved since `base_commit` | `ears-manager check` on the proposed manifests, and the Source Control Manager's `publish` `merge-base` check before push | Names the recorded base and the current default-branch head as `DEFAULT_MOVED` or `BASE_COMMIT_STALE`; the SCM's `details.next` is only the suggested update, not the full sequence | Refresh: merge the default branch into the change-set branch, then follow Source Control Manager [refresh step 6](source-control-manager.md#refresh) before applying the suggested `change-set update --change-set CS-ID --base-commit <target-head>` or running `check`; rerun `impact`, record a reviewed impact assessment, then run `check`, commit, and push |

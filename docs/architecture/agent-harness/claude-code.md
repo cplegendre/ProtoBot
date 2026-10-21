@@ -451,11 +451,21 @@ Code vocabulary is implemented.
 The shell rows that depend on the guard apply only when the hook returns
 a decision. If the hook fails open, native command-prefix permissions
 do not replace the guard's argument and shell-syntax checks; later checks
-compare registered artifact and configured-store digests only while the
-recorded digests remain intact and do not establish writer provenance for
-`.protobot/` control files, reserved harness paths, the selected manifest,
-or Git metadata. They also cannot establish whether file-source bytes came
-from standard input or an external path.
+catch registered-artifact digest mismatches, registered artifact
+path/canonical-content deltas without a matching proposed operation, and
+unregistration of a default-branch artifact. Structured-store integrity
+checks catch content changes only while their recorded digests remain
+intact. These checks do not prove that `ears-manager artifact put` was
+invoked or establish writer provenance for `.protobot/` control files,
+reserved harness paths, the selected manifest, or Git metadata.
+Coordinated manual edits to artifact content, its registry digest, and a
+manifest containing a matching operation can pass; hand edits to
+`repository.default_branch`, or to `repository.canonical_remote` when
+the remote-tracking fallback is used, can retarget the baseline. Rule 5
+in `AGENTS.md` prohibits hand-editing `.protobot/project.yaml`; Rule 6
+requires reviewers to inspect it and flag hand edits. They also cannot
+establish whether file-source bytes came from standard input or an
+external path.
 See the shared
 [file-source exception](adapter-contract.md#file-source-arguments).
 
