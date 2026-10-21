@@ -116,8 +116,10 @@ The Drafting Table agent creates and refines backlog requests
 - **Location:** `path:line` or `path:start-end` at the head SHA, on its own
   line. Separate several ranges with commas.
 - **Subject line:** `**label (decoration):** subject`. The subject is one
-  sentence that states the claim. This line and the discussion are what
-  gets pasted into GitHub. The heading and the location are not.
+  sentence that states the claim. Inline comment text includes the full subject
+  line and discussion, including any `**suggestion:**` line, but excludes the
+  heading and location. For a finding posted inline, the main review body
+  includes its full local comment entry.
 - **Discussion:** evidence with `path:line` citations, two to five lines,
   then the fix. An `issue` is always paired with a `**suggestion:**` line.
 - **Labels:** `issue` for a concrete defect, `suggestion` for an improvement
@@ -132,11 +134,25 @@ The Drafting Table agent creates and refines backlog requests
 
 ## Rules for the content
 
-- Post only what the author can act on. A check that found nothing (the
-  branch is up to date with `main`, the merge is clean, and no stale wording
-  is left) goes in the "What was checked" section of the local document,
-  never in the posted review or its comments. Freshness diagnostics from
-  `Specification store check` are blocking, not checks that found nothing.
+- Post only what the author can act on. Keep praise, `thought`, `note`, and
+  context-only comments in the local document, not in the GitHub review body
+  or comments. A check that found nothing (the branch is up to date with
+  `main`, the merge is clean, and no stale wording is left) goes in the "What
+  was checked" section of the local document, never in the posted review or
+  its comments. Freshness diagnostics from `Specification store check` are
+  blocking, not checks that found nothing. Do not create a GitHub review when
+  no actionable comments are selected; preserve the required local verdict
+  and "What was checked" sections.
+- Duplicate each finding posted inline once in the main GitHub review body, in
+  posted order, as its full existing local comment entry (heading, Location,
+  subject line, discussion, and suggestion); retain its corresponding inline
+  comments. That entry already carries the file and line/ranges, severity,
+  problem, evidence, and fix, so there is no second field layout. Do not
+  invent Critical/Major/Minor severity labels.
+- For disjoint ranges, post one inline comment per contiguous range; one body
+  entry carries all ranges. Keep the local verdict and other local-only material
+  out of the GitHub review body and comments; the GitHub review event carries
+  the verdict.
 - Problem first, then evidence, then fix. Say what is wrong before why.
 - Every fix must make the design or the code simpler or more complete. Drop
   a proposal that adds more than it removes.
