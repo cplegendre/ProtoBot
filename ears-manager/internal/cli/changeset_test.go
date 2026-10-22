@@ -487,6 +487,8 @@ func TestChangeSetRenumberResolvesConcurrentIDCollision(t *testing.T) {
 
 	feature := filepath.Join(t.TempDir(), "feature")
 	git(t, root, "clone", "-q", "file://"+root, feature)
+	git(t, feature, "config", "user.email", "test@example.invalid")
+	git(t, feature, "config", "user.name", "Test User")
 	t.Chdir(feature)
 	code, stdout, stderr = runCLI(nil, "--output", "json", "change-set", "create", "--intent", "Feature change", "--implementation-required", "true", "--created", "2026-10-20T12:10:00Z")
 	assertSuccess(t, code, stdout, stderr)
