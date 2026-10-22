@@ -79,6 +79,8 @@ func dispatch(args []string, stdin io.Reader) (any, Mutation, *commandFailure) {
 			return runChangeSetList(args[2:])
 		case "show":
 			return runChangeSetShow(args[2:])
+		case "renumber":
+			return runChangeSetRenumber(args[2:])
 		case "update":
 			return runChangeSetUpdate(args[2:], stdin)
 		case "compare":

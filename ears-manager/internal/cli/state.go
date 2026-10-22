@@ -29,8 +29,9 @@ type projectState struct {
 }
 
 type fileWrite struct {
-	path string
-	data []byte
+	path   string
+	data   []byte
+	delete bool
 }
 
 type fileExpectation struct {
@@ -596,9 +597,9 @@ func addRequirementWrites(writes *[]fileWrite, snapshot *specvalidation.Snapshot
 }
 
 func addConfigWrite(root string, snapshot *specvalidation.Snapshot, writes *[]fileWrite, observed map[string]fileExpectation) error {
-	overrides := make(map[string][]byte, len(*writes))
+	overrides := make(map[string]specvalidation.StoreFileOverride, len(*writes))
 	for _, write := range *writes {
-		overrides[filepath.ToSlash(write.path)] = write.data
+		overrides[filepath.ToSlash(write.path)] = specvalidation.StoreFileOverride{Data: write.data, Delete: write.delete}
 	}
 	stores := snapshot.Config.Stores.WithDefaults()
 	digests := records.StoreDigests{}
@@ -607,13 +608,13 @@ func addConfigWrite(root string, snapshot *specvalidation.Snapshot, writes *[]fi
 	for path := range observed {
 		observedPaths[filepath.ToSlash(path)] = true
 	}
-	if digests.Requirements, err = specvalidation.CanonicalStoreDigestWithOverridesAndObserved(root, stores.Requirements, overrides, observedPaths); err != nil {
+	if digests.Requirements, err = specvalidation.CanonicalStoreDigestWithFileOverrides(root, stores.Requirements, overrides, observedPaths); err != nil {
 		return err
 	}
-	if digests.Interfaces, err = specvalidation.CanonicalStoreDigestWithOverridesAndObserved(root, stores.Interfaces, overrides, observedPaths); err != nil {
+	if digests.Interfaces, err = specvalidation.CanonicalStoreDigestWithFileOverrides(root, stores.Interfaces, overrides, observedPaths); err != nil {
 		return err
 	}
-	if digests.ChangeSets, err = specvalidation.CanonicalStoreDigestWithOverridesAndObserved(root, stores.ChangeSets, overrides, observedPaths); err != nil {
+	if digests.ChangeSets, err = specvalidation.CanonicalStoreDigestWithFileOverrides(root, stores.ChangeSets, overrides, observedPaths); err != nil {
 		return err
 	}
 	snapshot.Config.StoreDigests = digests
@@ -631,10 +632,14 @@ func addRawWrite(writes *[]fileWrite, path string, data []byte) {
 	*writes = append(*writes, fileWrite{path: path, data: append([]byte(nil), data...)})
 }
 
+func addDelete(writes *[]fileWrite, path string) {
+	*writes = append(*writes, fileWrite{path: path, delete: true})
+}
+
 func deduplicateWrites(writes []fileWrite) []fileWrite {
 	byPath := make(map[string]fileWrite, len(writes))
 	for _, write := range writes {
-		byPath[filepath.ToSlash(write.path)] = fileWrite{path: filepath.ToSlash(write.path), data: write.data}
+		byPath[filepath.ToSlash(write.path)] = fileWrite{path: filepath.ToSlash(write.path), data: write.data, delete: write.delete}
 	}
 	result := make([]fileWrite, 0, len(byPath))
 	for _, write := range byPath {
@@ -716,6 +721,15 @@ func applyTransaction(rootPath string, writes []fileWrite, expected map[string]f
 				return Mutation{}, unknownIOFailure("storage.write_unknown", "A governed write directory failed and its final state could not be established.")
 			}
 			return Mutation{}, ioFailure("storage.write_failed", "The governed write directory could not be created.")
+		}
+		if write.delete {
+			if err := root.Remove(relative); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				if rollbackErr := rollbackFiles(root, originals[:index+1]); rollbackErr != nil {
+					return Mutation{}, unknownIOFailure("storage.write_unknown", "A governed deletion failed and its final state could not be established.")
+				}
+				return Mutation{}, ioFailure("storage.write_failed", "A governed deletion failed; no mutation was applied.")
+			}
+			continue
 		}
 		if err := replaceFile(root, relative, write.data); err != nil {
 			if rollbackErr := rollbackFiles(root, originals[:index+1]); rollbackErr != nil {

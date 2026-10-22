@@ -477,6 +477,95 @@ func TestChangeSetRefreshAfterDefaultBranchMerge(t *testing.T) {
 	}
 }
 
+func TestChangeSetRenumberResolvesConcurrentIDCollision(t *testing.T) {
+	root := newFixtureProject(t)
+	t.Chdir(root)
+	code, stdout, stderr := runCLI(nil, "--output", "json", "change-set", "create", "--intent", "Initialize the sequence", "--implementation-required", "true", "--created", "2026-10-20T12:00:00Z")
+	assertSuccess(t, code, stdout, stderr)
+	commitAll(t, root, "spec(CS-00001): initialize the sequence")
+	mergeIntoMain(t, root, "cs/00001-initialize-the-sequence")
+
+	feature := filepath.Join(t.TempDir(), "feature")
+	git(t, root, "clone", "-q", "file://"+root, feature)
+	t.Chdir(feature)
+	code, stdout, stderr = runCLI(nil, "--output", "json", "change-set", "create", "--intent", "Feature change", "--implementation-required", "true", "--created", "2026-10-20T12:10:00Z")
+	assertSuccess(t, code, stdout, stderr)
+	if got := jsonString(t, stdout, "data", "change_set", "id"); got != "CS-00002" {
+		t.Fatalf("feature change-set ID = %q, want CS-00002", got)
+	}
+	code, stdout, stderr = runCLI(nil, "--output", "json", "artifact", "put", "--change-set", "CS-00002", "--id", "vision", "--kind", "vision", "--path", "docs/vision.md", "--owner", "user", "--content-file", "docs/vision.md")
+	assertSuccess(t, code, stdout, stderr)
+	commitAll(t, feature, "spec(CS-00002): feature change")
+
+	t.Chdir(root)
+	code, stdout, stderr = runCLI(nil, "--output", "json", "change-set", "create", "--intent", "Independent main change", "--implementation-required", "true", "--created", "2026-10-20T12:20:00Z")
+	assertSuccess(t, code, stdout, stderr)
+	if got := jsonString(t, stdout, "data", "change_set", "id"); got != "CS-00002" {
+		t.Fatalf("default-branch change-set ID = %q, want CS-00002", got)
+	}
+	independentBranch := jsonString(t, stdout, "data", "change_set", "branch")
+	commitAll(t, root, "spec(CS-00002): independent main change")
+	mergeIntoMain(t, root, independentBranch)
+	defaultHead := gitOutput(t, root, "rev-parse", "HEAD")
+
+	t.Chdir(feature)
+	git(t, feature, "fetch", "file://"+root, "refs/heads/main:refs/heads/main")
+	merge := gitCommand("-C", feature, "merge", "--no-ff", "--no-commit", "--no-edit", "main")
+	mergeOutput, err := merge.CombinedOutput()
+	if err == nil || !strings.Contains(string(mergeOutput), "CONFLICT") {
+		t.Fatalf("merge did not produce the expected collision: err=%v output=%s", err, mergeOutput)
+	}
+	git(t, feature, "checkout", "--ours", "--", ".protobot/change-sets/cs-00002.yaml", ".protobot/project.yaml")
+	git(t, feature, "add", ".protobot/change-sets/cs-00002.yaml", ".protobot/project.yaml")
+	git(t, feature, "commit", "--no-edit")
+
+	code, stdout, stderr = runCLI(nil, "--output", "json", "change-set", "update", "--change-set", "CS-00002", "--base-commit", defaultHead)
+	if code != 5 || stderr != "" || jsonString(t, stdout, "error", "code") != "change_set.id_collision" || !strings.Contains(stdout, "change-set renumber") {
+		t.Fatalf("collision result = code %d stdout %s stderr %s", code, stdout, stderr)
+	}
+
+	code, stdout, stderr = runCLI(nil, "--output", "json", "change-set", "renumber", "--change-set", "CS-00002", "--to", "CS-00002")
+	if code != 5 || stderr != "" || jsonString(t, stdout, "error", "code") != "change_set.id_collision" {
+		t.Fatalf("explicit collision result = code %d stdout %s stderr %s", code, stdout, stderr)
+	}
+	code, stdout, stderr = runCLI(nil, "--output", "json", "change-set", "renumber", "--change-set", "CS-00002", "--to", "CS-2")
+	if code != 4 || stderr != "" || jsonString(t, stdout, "error", "code") != "change_set.invalid_id" {
+		t.Fatalf("invalid target result = code %d stdout %s stderr %s", code, stdout, stderr)
+	}
+
+	code, stdout, stderr = runCLI(nil, "--output", "json", "change-set", "renumber", "--change-set", "CS-00002")
+	assertSuccess(t, code, stdout, stderr)
+	if got := jsonString(t, stdout, "data", "to"); got != "CS-00003" || jsonString(t, stdout, "data", "manifest_path") != ".protobot/change-sets/cs-00003.yaml" {
+		t.Fatalf("renumber result = %s", stdout)
+	}
+	if _, err := os.Stat(filepath.Join(feature, ".protobot", "change-sets", "cs-00002.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("old manifest status error = %v", err)
+	}
+	var renumbered records.ChangeSet
+	if err := storage.ReadFile(filepath.Join(feature, ".protobot", "change-sets", "cs-00003.yaml"), &renumbered); err != nil {
+		t.Fatal(err)
+	}
+	if renumbered.ID != "CS-00003" || len(renumbered.ArtifactOperations) != 1 || renumbered.ArtifactOperations[0].ArtifactID != "vision" {
+		t.Fatalf("renumbered manifest = %#v", renumbered)
+	}
+	var config records.ProjectConfig
+	if err := storage.ReadFile(filepath.Join(feature, ".protobot", "project.yaml"), &config); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := specvalidation.CanonicalStoreDigestWithOverrides(feature, config.Stores.WithDefaults().ChangeSets, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.StoreDigests.ChangeSets != digest {
+		t.Fatalf("change-set store digest = %q, want %q", config.StoreDigests.ChangeSets, digest)
+	}
+
+	code, stdout, stderr = runCLI([]byte("[]"), "--output", "json", "change-set", "update", "--change-set", "CS-00003", "--base-commit", defaultHead, "--impact-file", "-")
+	assertSuccess(t, code, stdout, stderr)
+	code, stdout, stderr = runCLI(nil, "--output", "json", "check")
+	assertSuccess(t, code, stdout, stderr)
+}
+
 // TestChangeSetBaseRefreshWithoutCandidates follows step 7 of the Source
 // Control Manager golden fixture: an artifact-only change set has no impact
 // candidates, and a base update still makes its empty assessment stale.

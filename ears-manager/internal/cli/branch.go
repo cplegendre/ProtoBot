@@ -145,9 +145,29 @@ func changeSetSlug(intent string) string {
 // the name of every change-set branch, local or of the canonical remote. So
 // the next number names no manifest and no branch that this checkout knows.
 func highestChangeSetNumber(state projectState, prefix string) (int, *commandFailure) {
+	numbers, failure := changeSetNumbers(state, prefix)
+	if failure != nil {
+		return 0, failure
+	}
 	highest := 0
-	note := func(number int) {
+	for number := range numbers {
 		highest = max(highest, number)
+	}
+	return highest, nil
+}
+
+func changeSetNumberInUse(state projectState, prefix string, number int) (bool, *commandFailure) {
+	numbers, failure := changeSetNumbers(state, prefix)
+	if failure != nil {
+		return false, failure
+	}
+	return numbers[number], nil
+}
+
+func changeSetNumbers(state projectState, prefix string) (map[int]bool, *commandFailure) {
+	numbers := make(map[int]bool)
+	note := func(number int) {
+		numbers[number] = true
 	}
 	for _, document := range state.snapshot.ChangeSets {
 		if number, ok := changeSetNumber(document.Value.ID); ok {
@@ -157,13 +177,13 @@ func highestChangeSetNumber(state projectState, prefix string) (int, *commandFai
 	repository := state.snapshot.Config.Repository
 	refs, failure := resolveDefaultBranchRefs(state.root, repository)
 	if failure != nil {
-		return 0, failure
+		return nil, failure
 	}
 	store := strings.TrimSuffix(state.snapshot.Config.Stores.WithDefaults().ChangeSets, "/") + "/"
 	for _, ref := range refs {
 		output, err := gitCommand("-C", state.root, "ls-tree", "-z", "--name-only", ref, "--", store).Output()
 		if err != nil {
-			return 0, ioFailure("git.read_failed", fmt.Sprintf("Git could not list the change-set store at %s.", ref))
+			return nil, ioFailure("git.read_failed", fmt.Sprintf("Git could not list the change-set store at %s.", ref))
 		}
 		for _, name := range strings.Split(string(output), "\x00") {
 			if number, ok := manifestNumber(path.Base(name)); ok {
@@ -173,7 +193,7 @@ func highestChangeSetNumber(state projectState, prefix string) (int, *commandFai
 	}
 	remotes, failure := canonicalRemoteNames(state.root, repository.CanonicalRemote)
 	if failure != nil {
-		return 0, failure
+		return nil, failure
 	}
 	namespaces := []string{"refs/heads/"}
 	for _, remote := range remotes {
@@ -181,7 +201,7 @@ func highestChangeSetNumber(state projectState, prefix string) (int, *commandFai
 	}
 	output, err := gitCommand(append([]string{"-C", state.root, "for-each-ref", "--format=%(refname)"}, namespaces...)...).Output()
 	if err != nil {
-		return 0, ioFailure("git.read_failed", "Git could not list the change-set branches.")
+		return nil, ioFailure("git.read_failed", "Git could not list the change-set branches.")
 	}
 	for _, ref := range strings.Split(string(output), "\n") {
 		for _, namespace := range namespaces {
@@ -192,7 +212,7 @@ func highestChangeSetNumber(state projectState, prefix string) (int, *commandFai
 			}
 		}
 	}
-	return highest, nil
+	return numbers, nil
 }
 
 // changeSetNumber returns the sequence number of an ID CS-<nnnnn>.
