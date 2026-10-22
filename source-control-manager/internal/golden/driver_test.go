@@ -138,7 +138,6 @@ type driver struct {
 	work   string
 
 	session *mcp.ClientSession
-	cmd     *exec.Cmd
 	servers []*exec.Cmd
 	outputs []string
 	// reviewed is the impact file of step 7: a disposition for every
@@ -438,11 +437,6 @@ func (d *driver) connect(dir, version string) *mcp.ClientSession {
 		d.t.Fatalf("connect to the SCM: %v", err)
 	}
 	d.servers = append(d.servers, cmd)
-	// Secondary sessions (legacy protocol, nested project) close
-	// themselves. Keep the primary command so restore can reap it.
-	if d.session == nil {
-		d.cmd = cmd
-	}
 	return session
 }
 
@@ -450,18 +444,26 @@ func (d *driver) closeSession() {
 	if d.session != nil {
 		_ = d.session.Close()
 		d.session = nil
+		// The MCP transport already waits on cmd.Wait() during Close.
+		// Do not wait concurrently; only kill any process that has
+		// not yet exited and rely on removeAllRetry for unlink races.
+		for _, cmd := range d.servers {
+			if cmd != nil && cmd.Process != nil && cmd.ProcessState == nil {
+				_ = cmd.Process.Kill()
+			}
+		}
+		d.servers = nil
+		return
 	}
 	d.reapServers()
 }
 
-// reapServers waits for every SCM server process after the transport is
-// closed, then kills any that are still running. session.Close already
-// waits when the transport shuts down cleanly; this covers the cases
-// where Close returns before Wait, so restore does not race the child.
+// reapServers waits for every SCM server process whose session was never
+// closed (such as a connect failure or in standalone unit tests),
+// killing any that do not exit within serverWaitTimeout.
 func (d *driver) reapServers() {
 	cmds := d.servers
 	d.servers = nil
-	d.cmd = nil
 	for _, cmd := range cmds {
 		reapServer(cmd)
 	}

@@ -99,11 +99,8 @@ func TestCloseSessionReapsServerBeforeReturn(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	d := &driver{cmd: cmd, servers: []*exec.Cmd{cmd}}
+	d := &driver{servers: []*exec.Cmd{cmd}}
 	d.closeSession()
-	if d.cmd != nil {
-		t.Fatal("closeSession left cmd set")
-	}
 	if len(d.servers) != 0 {
 		t.Fatal("closeSession left servers set")
 	}
