@@ -36,6 +36,19 @@ const (
 	modernMCP   = "2026-07-28"
 	legacyMCP   = "2025-11-25"
 	fixtureFile = "../../../docs/architecture/fixtures/source-control-manager-golden.jsonl"
+
+	// fixtureGitconfig is the isolated Git configuration of every
+	// fixture process. gc.autoDetach is off so Git never leaves a
+	// maintenance daemon in the work directory after a command returns.
+	fixtureGitconfig = "[init]\n\tdefaultBranch = main\n[commit]\n\tgpgSign = false\n[advice]\n\tdetachedHead = false\n[gc]\n\tautoDetach = false\n"
+
+	// serverWaitTimeout is how long closeSession waits for the SCM
+	// server after closing the transport, before killing it.
+	serverWaitTimeout = 2 * time.Second
+	// removeAllRetryWindow and removeAllRetryInterval bound restore's
+	// retries when a child still holds files under the work directory.
+	removeAllRetryWindow   = time.Second
+	removeAllRetryInterval = 50 * time.Millisecond
 )
 
 // realEarsEnv names a real ears-manager binary. When it is set, the replay
@@ -125,6 +138,8 @@ type driver struct {
 	work   string
 
 	session *mcp.ClientSession
+	cmd     *exec.Cmd
+	servers []*exec.Cmd
 	outputs []string
 	// reviewed is the impact file of step 7: a disposition for every
 	// candidate that 7-impact returned.
@@ -175,6 +190,9 @@ func (d *driver) env() []string {
 // exit status.
 func (d *driver) run(dir string, stdin []byte, name string, args ...string) (string, int) {
 	d.t.Helper()
+	if name == "git" {
+		args = append([]string{"-c", "gc.autoDetach=false"}, args...)
+	}
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	cmd.Env = d.env()
@@ -210,7 +228,8 @@ func (d *driver) inspect(dir string, args ...string) string {
 
 func (d *driver) gitWith(dir string, options []string, args ...string) string {
 	d.t.Helper()
-	cmd := exec.Command("git", append(options, args...)...)
+	argv := append([]string{"-c", "gc.autoDetach=false"}, options...)
+	cmd := exec.Command("git", append(argv, args...)...)
 	cmd.Dir = dir
 	cmd.Env = d.env()
 	out, err := cmd.CombinedOutput()
@@ -266,8 +285,7 @@ func (d *driver) setup() {
 			d.t.Fatal(err)
 		}
 	}
-	gitconfig := "[init]\n\tdefaultBranch = main\n[commit]\n\tgpgSign = false\n[advice]\n\tdetachedHead = false\n"
-	if err := os.WriteFile(filepath.Join(d.work, "gitconfig"), []byte(gitconfig), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(d.work, "gitconfig"), []byte(fixtureGitconfig), 0o644); err != nil {
 		d.t.Fatal(err)
 	}
 	d.saveJSON(d.ghState(), map[string]any{"down": false, "next_number": 1, "pulls": []any{}, "recorded": []any{}})
@@ -343,11 +361,29 @@ func (d *driver) snapshot(name string) {
 func (d *driver) restore(name string) {
 	d.t.Helper()
 	d.closeSession()
-	if err := os.RemoveAll(d.work); err != nil {
+	if err := removeAllRetry(d.work); err != nil {
 		d.t.Fatal(err)
 	}
 	if err := copyTree(filepath.Join(d.base, "snapshots", name), d.work); err != nil {
 		d.t.Fatal(err)
+	}
+}
+
+// removeAllRetry repeats os.RemoveAll until it succeeds or the retry
+// window elapses, so a child that has not yet released the work
+// directory does not fail the fixture.
+func removeAllRetry(path string) error {
+	deadline := time.Now().Add(removeAllRetryWindow)
+	var err error
+	for {
+		err = os.RemoveAll(path)
+		if err == nil {
+			return nil
+		}
+		if !time.Now().Before(deadline) {
+			return err
+		}
+		time.Sleep(removeAllRetryInterval)
 	}
 }
 
@@ -395,9 +431,17 @@ func (d *driver) connect(dir, version string) *mcp.ClientSession {
 	client := mcp.NewClient(&mcp.Implementation{Name: "fixture-driver", Version: "1.0.0"}, nil)
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, &mcp.ClientSessionOptions{ProtocolVersion: version})
+	session, err := client.Connect(ctx, &mcp.CommandTransport{
+		Command: cmd, TerminateDuration: serverWaitTimeout,
+	}, &mcp.ClientSessionOptions{ProtocolVersion: version})
 	if err != nil {
 		d.t.Fatalf("connect to the SCM: %v", err)
+	}
+	d.servers = append(d.servers, cmd)
+	// Secondary sessions (legacy protocol, nested project) close
+	// themselves. Keep the primary command so restore can reap it.
+	if d.session == nil {
+		d.cmd = cmd
 	}
 	return session
 }
@@ -406,6 +450,34 @@ func (d *driver) closeSession() {
 	if d.session != nil {
 		_ = d.session.Close()
 		d.session = nil
+	}
+	d.reapServers()
+}
+
+// reapServers waits for every SCM server process after the transport is
+// closed, then kills any that are still running. session.Close already
+// waits when the transport shuts down cleanly; this covers the cases
+// where Close returns before Wait, so restore does not race the child.
+func (d *driver) reapServers() {
+	cmds := d.servers
+	d.servers = nil
+	d.cmd = nil
+	for _, cmd := range cmds {
+		reapServer(cmd)
+	}
+}
+
+func reapServer(cmd *exec.Cmd) {
+	if cmd == nil || cmd.Process == nil || cmd.ProcessState != nil {
+		return
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case <-done:
+	case <-time.After(serverWaitTimeout):
+		_ = cmd.Process.Kill()
+		<-done
 	}
 }
 
