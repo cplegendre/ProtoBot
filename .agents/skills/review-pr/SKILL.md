@@ -16,118 +16,56 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
 - Fetch the PR with `gh pr view` and `gh pr diff`. Record the head SHA, the
   base branch, and the merge base. Every line number in the review refers to
   the head SHA.
-- Check CI status on the PR head with `gh pr checks`. Failing CI checks,
-  including `Specification store check`, belong in the review verdict with
-  the blocking comments or as `chore`. Do not treat pending CI checks as
-  passing.
-- Before detailed specification analysis, follow a single trusted
-  freshness sequence: inspect the PR diff for `repository.canonical_remote` or
-  `repository.default_branch` changes before any fetch, splitting into exclusive
-  cases with no global fallback:
-  - When `repository.canonical_remote` and `repository.default_branch` are
-    unchanged versus the base branch: make the CI sequence the only allowed
-    freshness sync. Restrict CI `update-ref refs/heads/main` to a throwaway
-    clone, or a worktree where `git worktree list` shows `main` is not checked
-    out anywhere; do not run `update-ref` from a checkout while the primary tree
-    remains on `main`. The only freshness result is `ears-manager check` after
-    checking out the recorded PR head, running
-    `git fetch --no-tags https://github.com/redhat-et/ProtoBot.git refs/heads/main`
-    (refuse update-ref or check as freshness unless fetch exits 0; do not
-    reuse `FETCH_HEAD`), `git checkout --detach HEAD` (not as a substitute for
-    checking out the PR head), and `git update-ref refs/heads/main FETCH_HEAD`.
-    Match CI explicitly before treating local `ears-manager check` as
-    freshness: after fetch and `update-ref`, read `stores.change_sets` from
-    `refs/heads/main:.protobot/project.yaml`, using `.protobot/change-sets` only
-    if that file is absent on `main`. If the file exists but the field is
-    unreadable, or if the PR-head value differs, raise a blocking finding and
-    stop; do not run `ears-manager check` using the PR-head store path (do not
-    overlay-and-check with the PR's store path). Only after an exact path match,
-    run `ears-manager check`. If fetch is unavailable, require a successful
-    CI `Specification store check` on that head; treat missing, pending,
-    failed, skipped, cancelled, or neutral conclusions as blocking
-    unverified-freshness findings. Do not treat a `check` from another worktree,
-    PR base SHA, merge-base, fast-forward of `main`, unsynchronized
-    default-branch ref, or base-branch pass as freshness evidence. Treat
-    post-fetch `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, or
-    `BASE_COMMIT_STALE` as blocking.
-  - When `repository.canonical_remote` or `repository.default_branch` diffs
-    versus the base branch: treat it as a blocking hand-edit finding, do not
-    run `repo_state` on the PR-head tree (safe only when both fields are
-    unchanged versus the base branch), do not overlay-and-check using the PR
-    store path, and do not treat CI `Specification store check` as freshness
-    evidence (keep CI-as-fallback only in the unchanged-fields case when fetch is
-    unavailable). Overlay only `repository.canonical_remote` and
-    `repository.default_branch` from the base branch's `.protobot/project.yaml`
-    after PR-head checkout/detach (overlay only those two fields, not
-    `stores.change_sets`), complete the pinned fetch/detach/`update-ref`
-    sequence in a throwaway clone or worktree where `git worktree list` shows
-    `main` is not checked out anywhere; if that fetch is unavailable or exits
-    non-zero, raise the same blocking unverified-freshness finding and stop
-    detailed analysis. Apply the same store-path gate, and then require
-    `ears-manager check` in that same throwaway clone/worktree. Treat the
-    same post-fetch freshness diagnostics as blocking. Do not accept overlay,
-    fetch, `update-ref`, or path-match alone as freshness evidence.
+- Check CI status on the PR head with `gh pr checks`. A successful
+  `Specification store check` associated with that head is the freshness
+  result. If the check is missing, pending, failed, skipped, cancelled, or
+  neutral, report the failed or unverified check as a blocking finding and
+  stop detailed specification analysis.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
 - Check every claim against its source and every link against its target.
   Record what you checked and what you did not.
-- When a PR creates or modifies a registered specification artifact
-  (`docs/vision.md`, `docs/architecture.md`, or any other artifact
-  registered in `.protobot/project.yaml`), or when Rule 4 of "Rules for
-  creating or modifying specification documents" in `AGENTS.md` identifies
-  staleness in a registered specification artifact, verify that changes were
-  authored through `ears-manager artifact put` within an active change set:
-  - Require a checkout or worktree of the recorded PR head before working-tree
-    `change-set show` and `ears-manager check`; do not treat a `check` pass on
-    the base branch as evidence.
-  - For each registered path the PR creates or modifies or that Rule 4 of
-    "Rules for creating or modifying specification documents" in `AGENTS.md`
-    found stale, resolve `artifacts[].id` for that path in
-    `.protobot/project.yaml`, then require a change-set manifest under
-    `.protobot/change-sets/` (count a change-set only when working-tree
-    `ears-manager change-set show` (no `--at`), after the PR head is checked
-    out, reports `proposed` iff the manifest path is absent from the
-    default-branch tree; if `show --at <pr-head>` is used, require
-    path-absence in addition to `proposed`; do not treat `--at` status alone
-    as evidence of `artifact put`; never treat a path that already exists on
-    the default branch, including a modified `cs-00001.yaml`, as evidence of
-    `artifact put`) to contain an `artifact_operations[]` entry whose
-    `artifact_id` equals that registry id. Treat a digest-only or content
-    change without that proposed operation as a hand edit.
-  - Inspect the registered artifact and `.protobot/project.yaml`; a hand edit
-    to either is a finding.
-  - Require digest validation from a check that reaches it. On later checks,
-    ignore only `BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, and
-    `BASE_COMMIT_STALE`; they block only on the post-fetch result or a passing
-    CI `Specification store check`. Treat `project.default_branch_unresolved`
-    as incomplete: use the post-fetch throwaway check, a passing CI check, or
-    a rerun with a resolvable default-branch candidate; do not infer digest
-    validity from absent `artifact.digest_mismatch`.
-  - A missing `ears-manager artifact put` for such a path is a finding.
-  - When Rule 4 of "Rules for creating or modifying specification documents"
-    in `AGENTS.md` identifies staleness in a registered specification artifact,
-    raise a staleness finding that prescribes `ears-manager artifact put`, not
-    an edit by hand.
-- When a PR modifies `.protobot/project.yaml`, inspect the diff for a hand
-  edit to `repository.canonical_remote`, `repository.default_branch`, or
-  `artifacts[]` metadata (`artifacts[].owner`, `artifacts[].validator`, and
-  `artifacts[].kind`). Rule 5 of "Rules for creating or modifying specification
-  documents" in `AGENTS.md` forbids a hand edit to `.protobot/project.yaml`.
-  Diffs to `artifacts[]` metadata (`artifacts[].owner`, `artifacts[].validator`,
-  or `artifacts[].kind`) in `.protobot/project.yaml` are hand-edit findings
-  unless each modified artifact has a matching
-  `artifact_operations[].artifact_id` in a proposed change-set manifest (using
-  the proposed-change-set test already used for `artifact put` above) and the
-  change is within `ears-manager artifact put`'s action-specific allowed writes
-  (`artifacts[].owner` only on `action: add`; `artifacts[].kind` and
-  `artifacts[].validator` on `action: add` and `action: revise`; any
-  `artifacts[].owner` change on an existing artifact id remains a hand edit).
-  A hand edit to `repository.canonical_remote` or `repository.default_branch` in
-  `.protobot/project.yaml` is a finding. A zero-exit `ears-manager check` is not
-  evidence that `repository.canonical_remote`, `repository.default_branch`, or
-  `artifacts[]` metadata (`artifacts[].owner`, `artifacts[].validator`, and
-  `artifacts[].kind`) were tool-authored or not edited by hand.
+- **Review agents must check registered specification artifact and
+  project configuration updates.** When a PR creates or modifies a
+  registered specification artifact, or when Rule 4 identifies staleness
+  in a registered specification artifact, inspect each such registered
+  specification artifact for hand edits under Rule 5 and run
+  `ears-manager check` on a checkout or worktree of the recorded PR head; a
+  check on the base branch is not evidence. Require it to pass without
+  `artifact.digest_mismatch`, `artifact.operation_missing`, or
+  `artifact.unregistered`. The check requires each registered artifact path
+  or canonical-content delta to have a matching `artifact_id` in an
+  `artifact_operations[]` entry in any proposed change set, and rejects
+  unregistration of an artifact-registry entry present on the default
+  branch. This confirms manifest association only; it does not prove
+  `ears-manager artifact put` was invoked. Reviewers must flag hand edits
+  they can identify, not claim CLI provenance from an operation record.
+  Separately, whenever a PR modifies
+  [.protobot/project.yaml](../../../.protobot/project.yaml), inspect the
+  project configuration under Rule 5 of the specification-document rules in
+  `AGENTS.md` and flag any hand edit, even if no registered specification
+  artifact is changed. In particular, inspect diffs to
+  `repository.canonical_remote`, `repository.default_branch`, and
+  `artifacts[]` metadata (`owner`, `validator`, and `kind`); a hand edit to
+  any of these fields is a finding. Run `ears-manager check` on a checkout or worktree of
+  the recorded PR head; a check on the base branch is not evidence. Require
+  it to pass without `artifact.digest_mismatch`, `artifact.operation_missing`,
+  or `artifact.unregistered`. Metadata-only changes to an artifact-registry
+  entry do not by themselves require an artifact operation, and a zero-exit
+  check is not evidence that these fields were tool-authored. Findings should
+  include each listed diagnostic when a PR creates or modifies a registered
+  specification artifact, or when Rule 4 identifies staleness in a registered
+  specification artifact; any hand edit identified while inspecting
+  a registered specification artifact when a PR creates or modifies a
+  registered specification artifact, or when Rule 4 identifies staleness in
+  a registered specification artifact; each listed diagnostic and any hand
+  edit identified in [.protobot/project.yaml](../../../.protobot/project.yaml)
+  whenever a PR modifies
+  [.protobot/project.yaml](../../../.protobot/project.yaml), even if no
+  registered specification artifact is changed; and, when Rule 4 identifies
+  staleness in a registered specification artifact, a staleness finding that
+  prescribes `ears-manager artifact put`, not a hand edit.
 - Write the review to `review-<PR number>.md` in the repository root. Do not
   commit it, do not post it, do not push.
 
@@ -188,9 +126,10 @@ The Drafting Table agent creates and refines backlog requests
 
 - Post only what the author can act on. A check that found nothing (the
   branch is up to date with `main`, the merge is clean, no stale wording is
-  left) goes in the "What was checked" section of the local document, never
-  in the posted review or its comments. Post-fetch freshness diagnostics are
-  blocking, not checks that found nothing.
+  left)
+  goes in the "What was checked" section of the local document, never in
+  the posted review or its comments. Freshness diagnostics from
+  `Specification store check` are blocking, not checks that found nothing.
 - Problem first, then evidence, then fix. Say what is wrong before why.
 - Every fix must make the design or the code simpler or more complete. Drop
   a proposal that adds more than it removes.

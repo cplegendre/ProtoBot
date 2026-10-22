@@ -285,7 +285,21 @@ capability during Dimensioning, but it is broader than ProtoBot and does not
 own ProtoBot storage, change sets, approval, or lifecycle behavior. The same
 repository path contains process skills such as `pull-request`, `rebase-pr`,
 and `review-pr`; those are maintenance tooling, not Toolkit domain content.
-The final cross-harness packaging boundary remains an open question.
+The Toolkit also packages `drafting-specifications` as the ProtoBot session
+protocol: it coordinates start/resume, review checkpoints, and the mapping from
+accepted elicitation candidates to governed operations. It is separate from
+`eliciting-requirements`, which remains host-independent, and from repository
+process skills, which are not Toolkit capabilities. The protocol names
+`ears-manager`, the WMS Adapter, and the Source Control Manager as distinct
+boundaries; it owns no persistent store and names no harness-specific tool or
+configuration. The same protocol is loaded by single-player and multi-player
+TUI bindings and the hosted Web runtime; each deployment retains its own
+session and credential-isolation boundary. The Toolkit holds no downstream
+credential or authoritative session state.
+
+The final cross-harness packaging boundary remains an open question: the
+`.agents/skills/` layout is shared by current bindings, while distribution to
+projects outside the ProtoBot repository and Toolkit versioning remain open.
 
 ### Design principles
 
@@ -427,9 +441,12 @@ It is used by these callers:
   and [open question Q19][q19].
 - **CI** — `ears-manager check` runs on every branch push to
   validate that spec files are well-formed, all EARS statements
-  match required templates, referential integrity holds, and each
-  proposed change set's `base_commit` is the fetched default-branch
-  head.
+  match required templates, referential integrity holds, every registered
+  artifact path/canonical-content delta has a matching
+  `artifact_operations[]` entry with the same `artifact_id` in a proposed
+  change set, every artifact registered on the default branch remains
+  registered, and each proposed change set's `base_commit` matches the
+  resolved default-branch head.
 - **Job Site Materializer** — reads the approved manifest and requirement
   records at the immutable specification commit recorded in a build
   work-item contract.
@@ -453,7 +470,9 @@ It is used by these callers:
   proposed change sets
   ([approval rule](ears-manager-cli.md#approved-and-proposed-change-sets))
   and to check that each proposed `base_commit` equals that default-branch
-  head ([`check`](ears-manager-cli.md#check)); `ears-manager` never fetches.
+  head, and to compare registered artifact paths and canonical content with
+  the default-branch tree for artifact-operation consistency
+  ([`check`](ears-manager-cli.md#check)); `ears-manager` never fetches.
 - **Git refs (write):** `change-set create` cuts and checks out the
   change-set branch at the local default-branch head, and after a failed
   write checks the original branch out again and deletes the branch it cut
@@ -478,7 +497,7 @@ scope](ears-manager-cli.md#em-04-first-release-scope).
 | Subcommand | Purpose |
 | --- | --- |
 | `ears-manager project init` | Initialize `.protobot/project.yaml`, seed version-1 schema keys, store paths, store integrity digests, and opaque artifact entries, and write a version-1 `.protobot/projection.yaml` that classifies the registered specification paths and the configured store directories as `shared`. It creates no store directory and no artifact content. |
-| `ears-manager check` | Validate all spec files: project configuration and store integrity, projection classification (`projection.invalid`, `projection.unclassified`), EARS formatting, required fields, applicability metadata, change-set integrity, referential integrity, and proposed `base_commit` freshness against the default-branch head (`BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, `BASE_COMMIT_STALE`). Exit non-zero on failure. Suitable for CI gates. |
+| `ears-manager check` | Validate all spec files: project configuration and store integrity, projection classification (`projection.invalid`, `projection.unclassified`), EARS formatting, required fields, applicability metadata, change-set integrity, referential integrity, registered artifact path/canonical-content deltas against proposed `artifact_operations[]` (`artifact.operation_missing`), continued registration of default-branch artifacts (`artifact.unregistered`), and proposed `base_commit` freshness against the default-branch head (`BASE_NOT_ON_DEFAULT`, `DEFAULT_MOVED`, `BASE_COMMIT_STALE`). Exit non-zero on failure. Suitable for CI gates. |
 | `ears-manager requirement add` | Add a new EARS requirement with interface or project-wide applicability selectors and optional narrower scopes. Validates the EARS statement and metadata before writing. |
 | `ears-manager requirement list/show` | Read requirements at the working tree or an immutable `--at` revision. |
 | `ears-manager requirement update/retire` | Modify requirements through a proposed change set. |
@@ -532,7 +551,12 @@ scope](ears-manager-cli.md#em-04-first-release-scope).
   the `stores` block, per-store integrity digests, and their ADR-0003 layout.
   Opaque prose and external IDLs still pass through `ears-manager` for
   change-set membership and path/transaction control; controlled validator
-  adapters invoke approved format-specific tools.
+  adapters invoke approved format-specific tools. `check` compares
+  registered artifact paths and canonical content with the default-branch
+  tree, requires a matching `artifact_id` in `artifact_operations[]` in any
+  proposed change set for a delta, and rejects unregistration. This validates
+  manifest association, not whether `artifact put` was invoked; no other
+  component reimplements the check.
 - **File format consistency.** `ears-manager` ensures one-file-per-record
   YAML files ([ADR-0001](../decisions/0001-requirements-storage-format.md))
   are syntactically valid and follow the expected schema.
@@ -1278,18 +1302,20 @@ full DAG visible to either Worker.
 
 #### Isolation acceptance tests
 
-Every supported sandbox/backend must pass negative tests proving that
-each Worker cannot:
+Every supported sandbox/backend must pass the sandbox conformance suite in the
+[Job Site Sandbox Contract](jobsite-sandbox.md) and the #172
+integration-level suite. The integration-level suite proves that each Worker
+cannot:
 
 - enumerate the other Worker or integration repository's refs;
 - read a known forbidden commit with `git cat-file` or recover it as an
   unreachable/reflog object;
 - read forbidden current or historical paths;
 - use a remote, credential, Git alternate, shared object cache, or
-  network endpoint to fetch the canonical or peer repository; or
-- submit a patch outside its role's allowlisted paths.
+  network endpoint to fetch the canonical or peer repository.
 
-These tests run for both the initial project and later work items, so
+The Patch/Ownership Validator rejects patches outside a role's allowlisted
+paths. These tests run for both the initial project and later work items, so
 previously merged implementation and test artifacts remain separated.
 
 #### Triage and baseline feedback contract (decided)
@@ -1892,7 +1918,9 @@ sequenceDiagram
    PR. This is the human approval gate — standard branch
    protection rules, CODEOWNERS, and required reviews all apply.
    CI runs `ears-manager check` as a merge gate to validate spec
-   well-formedness and proposed `base_commit` freshness.
+   well-formedness, registered artifact path/canonical-content deltas against
+   proposed `artifact_operations[]`, continued registration of default-branch
+   artifacts, and proposed `base_commit` freshness.
 3. **The change set lands on main.** A registration hook calls the Job
    Site materializer with the change-set ID, resulting merge commit, stable
    materialization key, and the distinct deterministic registration
@@ -2011,7 +2039,8 @@ The first Job Site backend is **Fullsend**, using its OpenShell-based
 execution path. A direct **OpenShell** backend is the fallback and the
 preferred base for a custom ProtoBot Job Site. This is an implementation
 strategy, not an architectural dependency: both adapters implement the
-same ProtoBot execution and sandbox contract. Because both still depend
+same ProtoBot [Job Site Sandbox Contract](jobsite-sandbox.md).
+Because both still depend
 on OpenShell, a separate portable containment profile is the required
 sandbox fallback for platform incompatibility or failed OpenShell
 acceptance tests.
@@ -2047,19 +2076,21 @@ OpenCode remains the first Drafting Table harness. Job Site Workers use
 the harnesses supported by the selected execution backend; OpenCode is
 not a Job Site prerequisite unless a Fullsend OpenCode runtime is added.
 
-#### Sandbox contract and acceptance suite
+#### Sandbox contract and conformance suite
 
-The sandbox is the primary enforcement mechanism for safeguards; prompts
-are not a security boundary. Fullsend/OpenShell, direct OpenShell, and
-the portable profile must pass the same end-to-end suite for every
-supported compute backend:
+The versioned, backend-neutral contract is the
+[Job Site Sandbox Contract](jobsite-sandbox.md) (`jobsite-sandbox/v1`).
+The local test adapter and sandbox conformance suite live in
+`source-control-manager/internal/jobsite`. Prompts are not a security
+boundary. The sandbox is the primary enforcement mechanism for
+safeguards.
 
-- **Execution and filesystem:** no host, peer Worker, canonical repo, or
-  integration-repo reads; no writes outside projected paths; no mount,
-  namespace, ptrace, privilege, device, or forbidden syscall escape.
-- **Git isolation:** all negative ref/object/history/remote tests in
-  [Worker repository projections](#worker-repository-projections-decided)
-  pass from inside the actual agent process.
+The sandbox conformance suite owns these API-boundary controls:
+
+- **Filesystem API:** no host, peer Worker, canonical repo, or
+  integration-repo reads and no writes outside projected paths.
+- **Git API:** the negative ref/object/history/remote checks in
+  [Worker repository projections](#worker-repository-projections-decided).
 - **Network:** deny by default; allow only an approved executable to an
   approved destination, protocol, method, and L7 path. Tests must reject
   the same destination from another binary plus DNS, direct-IP, redirect,
@@ -2068,18 +2099,29 @@ supported compute backend:
   environment variable, process argument, log, response body, or agent-
   readable proxy state. A boundary broker injects credentials only after
   authorization and strips them before responses return.
-- **Lifecycle:** lease expiry, process termination, and work-item
-  completion remove ephemeral repositories, processes, mounts, network
-  policy, and broker sessions without making data recoverable by the next
-  sandbox.
+- **Lifecycle API:** sandbox-lease expiry and process termination stop
+  further session operations.
+- **Resource limits:** wall-clock, CPU, memory, process-count,
+  writable-disk, and writable-file limits fail closed.
 - **Auditability:** policy version, sandbox/backend version, executable
   digest, authorization decision, allowed request, denial, and cleanup
   result are tied to the work-item trace.
 
-If a backend or platform cannot pass the suite, the Job Site refuses
+Each runtime must also pass an integration-level suite that checks the
+actual Worker execution boundary. #172 owns that suite for
+Fullsend/OpenShell. It must reject host/peer reads; mount, namespace,
+ptrace, privilege, device, and forbidden-syscall escapes; Git checks run
+from inside the agent process; agent-readable proxy and log state; and
+leftover mounts, network policy, or broker sessions. The portable profile
+requires an assigned integration-level owner before it can enable
+autonomous execution.
+
+If a backend or platform cannot pass both suites, the Job Site refuses
 autonomous execution. It must not silently switch to a weaker profile.
 Fullsend's use of OpenShell is therefore validated as effective behavior,
-not accepted transitively by product name.
+not accepted transitively by product name. The API-level checks,
+local test adapter, and structured `ConformanceReport` are defined by
+the [Job Site Sandbox Contract](jobsite-sandbox.md).
 
 ### Authentication and Credential Isolation
 
@@ -2160,6 +2202,9 @@ confirmation.
   authorization, transitions, rejection semantics, and acceptance matrix
 - [Drafting Table WMS Integration Contract](drafting-table-wms.md) —
   Backend-neutral request, query, linking, and blocked-resolution operations
+- [Job Site Sandbox Contract](jobsite-sandbox.md) — Backend-neutral
+  sandbox conformance suite, local test adapter, and
+  Fullsend/OpenShell mapping
 - [WMS Implementations](../../wms/README.md) — Backend-neutral wire types
   and operation surfaces, the Go lifecycle evaluator, the in-memory fake
   adapter used by the conformance and fixture tests, and the first backend

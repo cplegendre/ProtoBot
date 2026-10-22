@@ -12,7 +12,7 @@ process:
 
 - Rebase your branch on the latest `upstream/main` to ensure it is up to date
 - Ensure all tests pass and the code is ready for review
-- Create the Pull Request on GitHub in a draft state
+- Create the Pull Request on GitHub
 - Monitor CI checks and address any issues
 - Await coderabbit's review and thoughtfully address any feedback. You can
   look at the CodeRabbit status check to see if the review is complete.
@@ -25,7 +25,6 @@ process:
 - Once all checks and reviews are passed, perform a final rebase of the branch
   on the latest `upstream/main`
 - Ensure CI checks pass after rebasing
-- Mark the PR as ready for review: `gh pr ready <id>`
 - Wait for the post-rebase CodeRabbit and `fullsend-ai-review[bot]` checks,
   addressing and responding to any feedback as described above.
 - Enable auto-merge: `gh pr merge <id> --auto --merge`

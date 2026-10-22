@@ -92,7 +92,8 @@ initialization command resolves the Git working-tree root before
 
 Reads are root-relative and deterministic:
 
-- `artifact get` reads registered content through the registry;
+- `artifact get` and `artifact list` read registered entries and content
+  through the registry;
 - `requirement`, `interface`, and `change-set` reads resolve IDs through the
   store; and
 - `check`, `change-set compare`, and `impact` read the complete relevant
@@ -100,9 +101,10 @@ Reads are root-relative and deterministic:
 
 In the target contract, the optional `--at <full-commit-sha>` selector provides
 read-revision semantics accepted only by read and analysis commands.
-`change-set show` implements it; the other read and analysis commands defer it
-to follow-on scope. It must name a full 40-character commit present in the
-local repository. The default is the current working tree. A read at a commit
+`change-set show` and `artifact list` implement it; the other read and
+analysis commands defer it to follow-on scope. It must name a full
+40-character commit present in the local repository. The default is the
+current working tree. A read at a commit
 still resolves the Git repository from the working tree, but it takes
 `.protobot/project.yaml`, `.protobot/projection.yaml`, the structured stores,
 and the registered artifacts from the tree of that commit. The working tree
@@ -253,11 +255,13 @@ including proposed-change-set impact-completeness checks. Issue #206 adds the
 immutable `--at` read to `change-set show`. EM-06 adds `project init` and the
 `shared` projection classification that `project init` and `artifact put`
 write and `check` validates. EM-07 (#114) adds the change-set branch cut to
-`change-set create`. Artifact listing, interface updates, `--at` reads on the
-other read and analysis commands, and explicit `--against` comparison
-revisions remain follow-on work. The dispatcher must not claim those remaining
-operations are available. The CLI never commits, pushes, or opens a pull
-request; the Source Control Manager does ([Write authority](#write-authority)).
+`change-set create`. Issue #77 implements `artifact list` for guarded artifact
+registry inspection, with the filters and immutable `--at` read in the grammar
+below. Interface updates, `--at` reads on other read and analysis commands, and
+explicit `--against` comparison revisions remain follow-on work. The
+dispatcher must not claim those remaining operations are available. The CLI
+never commits, pushes, or opens a pull request; the Source Control Manager does
+([Write authority](#write-authority)).
 
 `change-set create` allocates the ID, records the default-branch head as the
 base commit, cuts and checks out the change-set branch, and writes the
@@ -409,15 +413,16 @@ change-set list [--status STATUS] [--interface ID] [--scope SCOPE] \
 change-set show --change-set CS-ID [--at FULL-SHA]
 change-set compare --change-set CS-ID [--against FULL-SHA]
 
-check [--at FULL-SHA] [--change-set CS-ID]
+check [--change-set CS-ID]
 impact --change-set CS-ID [--at FULL-SHA]
 ```
 
 `--id` identifies a requirement, interface, or artifact. `--change-set`
 identifies a change set in every command that operates on an existing change
 set. `--at` selects the immutable read revision; `--against` selects the
-comparison baseline. `change-set show` accepts `--at`; `--at` on the other
-commands and `--against` remain deferred to follow-on scope.
+comparison baseline. `change-set show` and `artifact list` accept `--at`;
+`check` takes no `--at` and validates the working-tree project; `--at` on the
+other commands and `--against` remain deferred to follow-on scope.
 
 ---
 
@@ -624,7 +629,7 @@ apart and it merges through its own review.
 | --- | --- | --- | --- |
 | `artifact put` | Change set, artifact ID/kind/path/owner, optional validator registry name, and UTF-8 content | The complete registry entry, content digest, changed paths, and change-set artifact operation | `artifact.unknown_kind`, `artifact.invalid_id`, `artifact.invalid_path`, `artifact.invalid_content`, `artifact.owner_immutable`, `artifact.validator_not_allowed`, `artifact.validator_incompatible`, `artifact.write_not_allowed`, `projection.invalid`, `projection.unclassified`, or a validator diagnostic |
 | `artifact get` | Exactly one of artifact ID or kind, where kind must match one opaque artifact entry; optional `--at` | Registry entry and UTF-8 content | `artifact.not_found`, `artifact.ambiguous`, or `artifact.read_failed` |
-| `artifact list` | Optional kind/owner filter and `--at` | Registry entries sorted by artifact ID; content is not included | `project.invalid_configuration` or `artifact.read_failed` |
+| `artifact list` | Optional kind/owner filter and `--at` | Registry entries sorted by artifact ID; content is not included | `artifact.unknown_kind`, `artifact.invalid_owner`, `project.invalid_configuration`, `artifact.read_failed`, `revision.invalid`, `revision.not_found`, or `revision.read_failed` |
 
 `artifact put` is the only route for Vision, Architecture, interface prose,
 and external interface-IDL content. It updates the registry digest, records
@@ -957,33 +962,65 @@ same result as a working tree without the manifest.
 ### `check`
 
 ```text
-ears-manager check [--at FULL-SHA] [--change-set CS-ID]
+ears-manager check [--change-set CS-ID]
 ```
 
-`check` is read-only. Without `--change-set`, it validates the complete
-project store, registry, projection classification, all records, and all
-referential, relationship, EARS, artifact-digest, structured-store-integrity,
-and change-set rules, including impact completeness and default-branch
-freshness for every proposed change set. Freshness uses the local default
-branch when it resolves, otherwise a resolved remote-tracking ref of a
-canonical remote; CI fetches `repository.default_branch` from
-`repository.canonical_remote` into that local ref first
-([Gates and labels](git-integration.md#gates-and-labels)). Approved
-manifests' stored historical assessments and `base_commit` values remain
-preserved. Independent load failures are aggregated with semantic diagnostics
-from records that could still be read.
-Because `ears-manager` never fetches, `check` can pass against a stale local
-default ref after a failed or missing fetch. Before the Drafting Table relies
-on this freshness result, SCM `repo_state` must report `remote.reachable: true`
-([`repo_state`](source-control-manager.md#repo_state)).
+`check` is read-only and validates the working-tree project; immutable `--at`
+reads are not supported for this command. Without `--change-set`, it validates
+the complete project store, registry, projection classification, all records,
+and all referential, relationship, and EARS rules, plus artifact-digest,
+structured-store-integrity, and change-set rules. This includes
+artifact-operation consistency, impact completeness, and default-branch
+freshness for every proposed change set. For
+each artifact registered on the default-branch project configuration, `check`
+requires the artifact to remain registered. A registered artifact whose path
+or canonical text differs from the default-branch tree requires an
+`artifact_operations[]` entry with the same `artifact_id` in any proposed
+change set; operations in approved manifests do not count. A new registry
+entry for a file already present at the same path with identical canonical
+text is not a delta. Metadata-only changes to `kind`, `owner`, or `validator`
+are outside this operation check; `path` changes and unregistration are not.
+A default-branch project configuration that
+exists but is not a regular, decodable file fails closed. The check verifies
+that the delta is represented in a proposed manifest; it does not prove that
+`ears-manager artifact put` was invoked or prevent coordinated manual edits.
+`artifact.digest_mismatch` remains a separate diagnostic for content that does
+not match its registered digest.
+
+Every full or scoped `check` requires a resolvable default-branch head for the
+artifact comparison, even when the project has no change sets. Change-set
+status and freshness checks also consume that head when change sets exist.
+
+During project initialization, the default-branch tree may have no
+`.protobot/project.yaml`. In that case its base artifact registry is empty,
+but `check` still compares each currently registered artifact path and
+canonical content with the default-branch tree. An unchanged file already
+present at the same path needs no artifact operation; a file absent from the
+default-branch tree or with changed canonical content does.
+
+The artifact-operation check runs for full `check` and `check --change-set`;
+`--change-set` narrows only the impact and freshness checks described below.
+Freshness and artifact comparison use the local default branch when it
+resolves, otherwise a resolved remote-tracking ref of a canonical remote; CI
+fetches `repository.default_branch` from `repository.canonical_remote` into
+that local ref first
+([Gates and labels](git-integration.md#gates-and-labels)). Because
+`ears-manager` never fetches, `check` can use a stale local default ref after a
+failed or missing fetch. Before the Drafting Table relies on this freshness
+result, SCM `repo_state` must report `remote.reachable: true`
+([`repo_state`](source-control-manager.md#repo_state)). Approved manifests'
+stored historical assessments and `base_commit` values remain preserved.
+Independent load failures are aggregated with semantic diagnostics from
+records that could still be read.
 After `refresh`, the Drafting Table runs SCM `repo_state` before applying the
 base update or running `check`; it follows the
 [refresh recovery rule](source-control-manager.md#refresh) because freshness
 prefers a resolved local default ref. `change-set update` checks ancestry
 against `HEAD`, not whether the base is on the default branch
 ([ancestry check](#ancestry-check)).
-`--change-set` narrows that impact and freshness check to the named proposed
-manifest.
+`--change-set` narrows the impact and freshness checks to the named proposed
+manifest; it does not narrow artifact-operation consistency, which checks the
+registered artifacts against all proposed manifests in the loaded project.
 "Matches" means that every current mechanical candidate has exactly one final
 recorded disposition, every recorded `mechanical` entry is still a current
 mechanical candidate, every `semantic` entry names an unchanged active
@@ -1059,7 +1096,8 @@ carries no diagnostics. A diagnostic arrives in `error.diagnostics`.
 | `project.not_initialized` | `error.code` | The Git working tree has no `.protobot/project.yaml` | `3` |
 | `project.configuration_unreadable` | `error.code` | `.protobot/project.yaml` cannot be inspected for a reason other than its absence, for example because `.protobot` is a regular file | `6` |
 | `project.load_failed` | `error.code` | With `--change-set` only: the project does not load, and validation names no diagnostic | `3` |
-| `project.default_branch_unresolved` | `error.code` | A change set exists, and the default branch does not resolve to a commit | `3` |
+| `project.default_branch_unresolved` | `error.code` | The default branch does not resolve to a commit; every `check` needs it for artifact comparison, including with zero change sets, and change-set status/freshness checks need it when change sets exist | `3` |
+| `project.default_configuration_invalid` | `error.code` | The default-branch project configuration exists but is not a regular, decodable file | `3` |
 | `project.invalid_configuration` | Both | The review mode, default branch, or branch prefix is invalid, or the canonical remote is not a supported form. It is also the `error.code` of every status `3` result that carries diagnostics | `3` |
 | `schema.unsupported_version` | Diagnostic | A schema version is missing or is not the supported version | `3` |
 | `project.invalid_path` | Diagnostic | `.protobot/` is a symlink, or a configured store path is not a project-relative directory | `3` |
@@ -1069,6 +1107,9 @@ carries no diagnostics. A diagnostic arrives in `error.diagnostics`.
 | `project.invalid_digest` | Diagnostic | A recorded store digest does not match `sha256:<64 lowercase hexadecimal characters>` | `4` |
 | `project.store_digest_unreadable` | Diagnostic | A visible entry of a structured store is a symlink, a subdirectory, or not a `.yaml` file, or the store cannot be read | `4` |
 | `project.store_digest_mismatch` | Diagnostic | The visible YAML file set of a structured store does not match its recorded digest | `4` |
+| `artifact.digest_mismatch` | Diagnostic | Registered artifact content does not match its canonical digest | `4` |
+| `artifact.operation_missing` | Diagnostic | A registered artifact path or canonical text delta has no matching `artifact_id` in any proposed change set's `artifact_operations[]` | `4` |
+| `artifact.unregistered` | Diagnostic | An artifact registered on the default branch is absent from the current registry | `4` |
 | `BASE_NOT_ON_DEFAULT` | Both | A proposed manifest's `base_commit` is not a full commit ID reachable from the default-branch head | `4` |
 | `DEFAULT_MOVED` | Both | The default-branch head is not reachable from `HEAD` | `5` |
 | `BASE_COMMIT_STALE` | Both | The default-branch head is reachable from `HEAD`, but the normalized `base_commit` differs from that head | `5` |
