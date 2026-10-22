@@ -17,10 +17,17 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   base branch, and the merge base. Every line number in the review refers to
   the head SHA.
 - Check CI status on the PR head with `gh pr checks`. A successful
-  `Specification store check` associated with that head is the freshness
-  result. If the check is missing, pending, failed, skipped, cancelled, or
-  neutral, report the failed or unverified check as a blocking finding and
-  stop detailed specification analysis.
+  `Specification store check` associated with that head is corroborating
+  freshness evidence, not a substitute for the local check. If the check is
+  pending or missing, wait for it or rerun it; do not report an
+  author-actionable finding solely for that state. A completed failure
+  belongs in the review verdict, with the local check and Rule 6 inspection
+  used to identify the actual diagnostic.
+- Before detailed specification analysis, run `ears-manager check` on a
+  checkout or worktree of the recorded PR head. Treat `DEFAULT_MOVED` or
+  `BASE_COMMIT_STALE` as blocking freshness findings and stop detailed
+  specification analysis. Other `ears-manager check` diagnostics do not
+  replace the Rule 6 inspection below.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
@@ -48,10 +55,11 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
   artifact is changed. In particular, inspect diffs to
   `repository.canonical_remote`, `repository.default_branch`, and
   `artifacts[]` metadata (`owner`, `validator`, and `kind`); a hand edit to
-  any of these fields is a finding. Run `ears-manager check` on a checkout or worktree of
-  the recorded PR head; a check on the base branch is not evidence. Require
-  it to pass without `artifact.digest_mismatch`, `artifact.operation_missing`,
-  or `artifact.unregistered`. Metadata-only changes to an artifact-registry
+  any of these fields is a finding. Run `ears-manager check` on a checkout or
+  worktree of the recorded PR head; a check on the base branch is not
+  evidence. Require it to pass without `artifact.digest_mismatch`,
+  `artifact.operation_missing`, or `artifact.unregistered`. Metadata-only
+  changes to an artifact-registry
   entry do not by themselves require an artifact operation, and a zero-exit
   check is not evidence that these fields were tool-authored. Findings should
   include each listed diagnostic when a PR creates or modifies a registered
@@ -125,10 +133,9 @@ The Drafting Table agent creates and refines backlog requests
 ## Rules for the content
 
 - Post only what the author can act on. A check that found nothing (the
-  branch is up to date with `main`, the merge is clean, no stale wording is
-  left)
-  goes in the "What was checked" section of the local document, never in
-  the posted review or its comments. Freshness diagnostics from
+  branch is up to date with `main`, the merge is clean, and no stale wording
+  is left) goes in the "What was checked" section of the local document,
+  never in the posted review or its comments. Freshness diagnostics from
   `Specification store check` are blocking, not checks that found nothing.
 - Problem first, then evidence, then fix. Say what is wrong before why.
 - Every fix must make the design or the code simpler or more complete. Drop
