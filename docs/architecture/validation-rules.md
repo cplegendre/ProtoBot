@@ -787,6 +787,8 @@ decisions.
   Job Site, and security boundaries.
 - [Drafting Table WMS Integration](drafting-table-wms.md) — Backend-neutral
   request, query, linking, and blocked-resolution operations.
+- [Job Site Sandbox Contract](jobsite-sandbox.md) — Backend-neutral
+  execution and sandbox checks; it does not mutate lifecycle state.
 - [User Interaction Flow](user-interaction-flow.md) — Change types, work-item
   lifecycle, and testing strategy.
 - [Drafting Table UX](drafting-table-ux.md) — Preflight, blocked-work,
@@ -796,6 +798,8 @@ decisions.
 - [Source Control Manager](source-control-manager.md) — Reuses this
   contract's authorization context for Git, with a proposed
   `change_set_id`.
+- [Evaluation Corpus Schema and Result Contract](evaluation-corpus.md)
+  — Versioned fixtures, holdout isolation, and stage-attributed results.
 - [Open Design Questions](open-questions.md) — Cross-cutting questions about
   interactive, autonomous, compliance, and interface concerns.
 - [ADR-0001](../decisions/0001-requirements-storage-format.md) — Physical

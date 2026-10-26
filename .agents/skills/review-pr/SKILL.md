@@ -16,46 +16,64 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
 - Fetch the PR with `gh pr view` and `gh pr diff`. Record the head SHA, the
   base branch, and the merge base. Every line number in the review refers to
   the head SHA.
+- Check CI status on the PR head with `gh pr checks`. A successful
+  `Specification store check` associated with that head is corroborating
+  freshness evidence, not a substitute for the local check. If the check is
+  pending or missing, wait for it or rerun it; do not report an
+  author-actionable finding solely for that state. A completed failure
+  belongs in the review verdict, with the local check and Rule 6 inspection
+  used to identify the actual diagnostic.
+- Before detailed specification analysis, run `ears-manager check` on a
+  checkout or worktree of the recorded PR head. Treat `DEFAULT_MOVED` or
+  `BASE_COMMIT_STALE` as blocking freshness findings and stop detailed
+  specification analysis. Other `ears-manager check` diagnostics do not
+  replace the Rule 6 inspection below.
 - Read the full diff. Then read every file the diff cites or depends on. For
   design documents, read the sibling documents end to end. Contradictions
   live in the parts that nobody cites.
 - Check every claim against its source and every link against its target.
   Record what you checked and what you did not.
-- When a PR creates or modifies a registered specification artifact
-  (`docs/vision.md`, `docs/architecture.md`, or any other artifact
-  registered in `.protobot/project.yaml`), or when Rule 4 of "Rules for
-  creating or modifying specification documents" in `AGENTS.md` identifies
-  staleness in a registered specification artifact, verify that changes were
-  authored through `ears-manager artifact put` within an active change set:
-  - Require a checkout or worktree of the recorded PR head before working-tree
-    `change-set show` and `ears-manager check`; do not treat a `check` pass on
-    the base branch as evidence.
-  - For each registered path the PR creates or modifies or that Rule 4 of
-    "Rules for creating or modifying specification documents" in `AGENTS.md`
-    found stale, resolve `artifacts[].id` for that path in
-    `.protobot/project.yaml`, then require a change-set manifest under
-    `.protobot/change-sets/` (count a change-set only when working-tree
-    `ears-manager change-set show` (no `--at`), after the PR head is checked
-    out, reports `proposed` iff the manifest path is absent from the
-    default-branch tree; if `show --at <pr-head>` is used, require
-    path-absence in addition to `proposed`; do not treat `--at` status alone
-    as evidence of `artifact put`; never treat a path that already exists on
-    the default branch, including a modified `cs-00001.yaml`, as evidence of
-    `artifact put`) to contain an `artifact_operations[]` entry whose
-    `artifact_id` equals that registry id. Treat a digest-only or content
-    change without that proposed operation as a hand edit.
-  - Inspect the registered specification artifact and `.protobot/project.yaml`
-    to ensure neither was edited by hand. A registered specification artifact
-    or `.protobot/project.yaml` edited by hand is a finding.
-  - Confirm `ears-manager check` passes without `artifact.digest_mismatch`.
-  - A missing `ears-manager artifact put`, when a PR creates or modifies a
-    registered specification artifact or when Rule 4 of "Rules for creating
-    or modifying specification documents" in `AGENTS.md` identifies staleness
-    in a registered specification artifact, is a finding.
-  - When Rule 4 of "Rules for creating or modifying specification documents"
-    in `AGENTS.md` identifies staleness in a registered specification artifact,
-    raise a staleness finding that prescribes `ears-manager artifact put`, not
-    an edit by hand.
+- **Review agents must check registered specification artifact and
+  project configuration updates.** When a PR creates or modifies a
+  registered specification artifact, or when Rule 4 identifies staleness
+  in a registered specification artifact, inspect each such registered
+  specification artifact for hand edits under Rule 5 and run
+  `ears-manager check` on a checkout or worktree of the recorded PR head; a
+  check on the base branch is not evidence. Require it to pass without
+  `artifact.digest_mismatch`, `artifact.operation_missing`, or
+  `artifact.unregistered`. The check requires each registered artifact path
+  or canonical-content delta to have a matching `artifact_id` in an
+  `artifact_operations[]` entry in any proposed change set, and rejects
+  unregistration of an artifact-registry entry present on the default
+  branch. This confirms manifest association only; it does not prove
+  `ears-manager artifact put` was invoked. Reviewers must flag hand edits
+  they can identify, not claim CLI provenance from an operation record.
+  Separately, whenever a PR modifies
+  [.protobot/project.yaml](../../../.protobot/project.yaml), inspect the
+  project configuration under Rule 5 of the specification-document rules in
+  `AGENTS.md` and flag any hand edit, even if no registered specification
+  artifact is changed. In particular, inspect diffs to
+  `repository.canonical_remote`, `repository.default_branch`, and
+  `artifacts[]` metadata (`owner`, `validator`, and `kind`); a hand edit to
+  any of these fields is a finding. Run `ears-manager check` on a checkout or
+  worktree of the recorded PR head; a check on the base branch is not
+  evidence. Require it to pass without `artifact.digest_mismatch`,
+  `artifact.operation_missing`, or `artifact.unregistered`. Metadata-only
+  changes to an artifact-registry
+  entry do not by themselves require an artifact operation, and a zero-exit
+  check is not evidence that these fields were tool-authored. Findings should
+  include each listed diagnostic when a PR creates or modifies a registered
+  specification artifact, or when Rule 4 identifies staleness in a registered
+  specification artifact; any hand edit identified while inspecting
+  a registered specification artifact when a PR creates or modifies a
+  registered specification artifact, or when Rule 4 identifies staleness in
+  a registered specification artifact; each listed diagnostic and any hand
+  edit identified in [.protobot/project.yaml](../../../.protobot/project.yaml)
+  whenever a PR modifies
+  [.protobot/project.yaml](../../../.protobot/project.yaml), even if no
+  registered specification artifact is changed; and, when Rule 4 identifies
+  staleness in a registered specification artifact, a staleness finding that
+  prescribes `ears-manager artifact put`, not a hand edit.
 - Write the review to `review-<PR number>.md` in the repository root. Do not
   commit it, do not post it, do not push.
 
@@ -63,7 +81,9 @@ review document, not comments on GitHub. Post to GitHub only when asked to.
 
 1. Header: PR link, head and base SHAs, author, review date, files touched.
 2. Verdict: approve or request changes, then the blocking comments as a
-   list, one line each: ID and title. Then any `chore`, then praise, then
+   list, one line each: ID and title. Failing CI checks, including
+   `Specification store check`, belong in the review verdict with the
+   blocking comments or as `chore`. Then any `chore`, then praise, then
    any `thought`. Nothing else.
 3. Comments, grouped in this order: blocking; non-blocking issues and
    suggestions; todos, nitpicks, and questions; other files. Inside a group,
@@ -96,8 +116,10 @@ The Drafting Table agent creates and refines backlog requests
 - **Location:** `path:line` or `path:start-end` at the head SHA, on its own
   line. Separate several ranges with commas.
 - **Subject line:** `**label (decoration):** subject`. The subject is one
-  sentence that states the claim. This line and the discussion are what
-  gets pasted into GitHub. The heading and the location are not.
+  sentence that states the claim. Inline comment text includes the full subject
+  line and discussion, including any `**suggestion:**` line, but excludes the
+  heading and location. For a finding posted inline, the main review body
+  includes its full local comment entry.
 - **Discussion:** evidence with `path:line` citations, two to five lines,
   then the fix. An `issue` is always paired with a `**suggestion:**` line.
 - **Labels:** `issue` for a concrete defect, `suggestion` for an improvement
@@ -112,10 +134,25 @@ The Drafting Table agent creates and refines backlog requests
 
 ## Rules for the content
 
-- Post only what the author can act on. A check that found nothing (the
-  branch is behind `main`, the merge is clean, no stale wording is left)
-  goes in the "What was checked" section of the local document, never in
-  the posted review or its comments.
+- Post only what the author can act on. Keep praise, `thought`, `note`, and
+  context-only comments in the local document, not in the GitHub review body
+  or comments. A check that found nothing (the branch is up to date with
+  `main`, the merge is clean, and no stale wording is left) goes in the "What
+  was checked" section of the local document, never in the posted review or
+  its comments. Freshness diagnostics from `Specification store check` are
+  blocking, not checks that found nothing. Do not create a GitHub review when
+  no actionable comments are selected; preserve the required local verdict
+  and "What was checked" sections.
+- Duplicate each finding posted inline once in the main GitHub review body, in
+  posted order, as its full existing local comment entry (heading, Location,
+  subject line, discussion, and suggestion); retain its corresponding inline
+  comments. That entry already carries the file and line/ranges, severity,
+  problem, evidence, and fix, so there is no second field layout. Do not
+  invent Critical/Major/Minor severity labels.
+- For disjoint ranges, post one inline comment per contiguous range; one body
+  entry carries all ranges. Keep the local verdict and other local-only material
+  out of the GitHub review body and comments; the GitHub review event carries
+  the verdict.
 - Problem first, then evidence, then fix. Say what is wrong before why.
 - Every fix must make the design or the code simpler or more complete. Drop
   a proposal that adds more than it removes.

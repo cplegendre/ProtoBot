@@ -30,25 +30,28 @@ directory of its own, `core.fsmonitor` off, and literal pathspecs. A commit
 is built in a private index and moved onto the branch with a
 compare-and-swap `git update-ref`.
 
-## Job Site projection fixture
+## Job Site projection and sandbox fixture
 
-`internal/jobsite` is the standalone Job Site projection seam for
-issue #78. It exports Worker A, Worker B, and a private Integration
+`internal/jobsite` is the standalone Job Site projection and sandbox
+seam. It exports Worker A, Worker B, and a private Integration
 repository from a source commit and a version-1 projection policy,
-and it validates PatchBundle v1 imports. It is not a Drafting Table
-SCM face. Sandbox enforcement, the integration loop, and Fullsend
-mapping remain #79, #69, and #172.
+validates PatchBundle v1 imports, and runs the `jobsite-sandbox/v1`
+conformance suite against a local test adapter. It is not a Drafting
+Table SCM face. The integration loop and Fullsend mapping remain #69
+and #172.
 
-`go test ./internal/jobsite` is the mandatory local isolation fixture.
+`go test ./internal/jobsite` is the mandatory local isolation and
+sandbox-contract fixture.
 
 ## Not in this build
 
 - **The hosted face behind the Gate.** `serve --transport streamable-http`
   exits non-zero and never listens. The hosted face is out of the scope of
   #160.
-- **A real `ears-manager`.** The command set of #110 does not exist yet.
-  The SCM reads it through `ears-manager --output json`; the field names
-  that #30 leaves open are named in [`internal/ears`](internal/ears/ears.go).
+- **A bundled `ears-manager` CLI.** `ears-manager` is a separate executable
+  and is not bundled with `source-control-manager`. The SCM invokes it through
+  `ears-manager --output json`; [`internal/ears`](internal/ears/ears.go)
+  documents the fields the SCM consumes from its results.
 
 ## Build and test
 
@@ -57,22 +60,25 @@ go build ./cmd/source-control-manager
 go test ./...
 ```
 
-`go test` replays the golden fixture,
+The ordinary `go test ./...` run replays the golden fixture,
 [`source-control-manager-golden.jsonl`][fixture], against the built binary:
 it starts `serve`, calls the tools as an MCP client, and compares every
 result. Stubs stand in for `gh` ([`internal/testing/ghstub`][ghstub]) and
-`ears-manager` ([`internal/testing/earsstub`][earsstub]). The fixture rows
-of the hosted face are skipped.
+`ears-manager` ([`internal/testing/earsstub`][earsstub]). CI keeps this
+stub-backed run and separately builds the workspace `ears-manager` binary
+before replaying the fixture against it. The hosted-face fixture rows remain
+skipped.
 
-Once `ears-manager` has its command set (#110, #112, #113), run the same
-replay against the real binary:
+To run the real-binary replay locally:
 
 ```sh
 (cd ../ears-manager && go build -o /tmp/ears-manager ./cmd/ears-manager)
-SCM_FIXTURE_EARS_MANAGER=/tmp/ears-manager go test ./internal/golden/
+SCM_FIXTURE_EARS_MANAGER=/tmp/ears-manager go test -count=1 -v ./internal/golden
 ```
 
-The checks that drive the stub's own controls are skipped in that mode.
+That mode skips the three stub-only checks: scm-22 (protected path), scm-35
+(directory path), and protected names in another letter case. The hosted-face
+fixture rows remain skipped in both modes.
 
 [design]: ../docs/architecture/source-control-manager.md
 [fixture]: ../docs/architecture/fixtures/source-control-manager-golden.jsonl

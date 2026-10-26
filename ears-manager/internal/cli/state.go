@@ -29,8 +29,9 @@ type projectState struct {
 }
 
 type fileWrite struct {
-	path string
-	data []byte
+	path   string
+	data   []byte
+	delete bool
 }
 
 type fileExpectation struct {
@@ -133,8 +134,13 @@ func checkState() (projectState, *commandFailure) {
 	}
 	context := specvalidation.ValidationContext{ProposedChangeSets: proposed}
 	result := specvalidation.ValidateProjectWithContext(root, context)
+	var draftFailure *commandFailure
 	if !result.Valid {
-		return projectState{root: root}, failureFromValidation(result, false)
+		validationFailure := failureFromValidation(result, false)
+		if validationFailure == nil || validationFailure.Code != "change_set.assessment_incomplete" {
+			return projectState{root: root}, validationFailure
+		}
+		draftFailure = validationFailure
 	}
 	snapshot, err := specvalidation.LoadWithContext(root, context)
 	if err != nil {
@@ -146,6 +152,12 @@ func checkState() (projectState, *commandFailure) {
 	}
 	if failure := checkProposedBaseFreshness(root, snapshot, proposed, head); failure != nil {
 		return projectState{root: root}, failure
+	}
+	if failure := checkArtifactOperationDeltas(root, snapshot, proposed); failure != nil {
+		return projectState{root: root}, failure
+	}
+	if draftFailure != nil {
+		return projectState{root: root}, draftFailure
 	}
 	return projectState{root: root, snapshot: snapshot, observed: observeSnapshot(root, snapshot), head: head, diagnostics: result.Diagnostics}, nil
 }
@@ -367,17 +379,23 @@ func validateScopedCheck(root string, snapshot specvalidation.Snapshot, targetIn
 		seen[diagnostic] = true
 		unique = append(unique, diagnostic)
 	}
-	if failure := failureFromDiagnostics(unique); failure != nil {
+	draftFailure := failureFromDiagnostics(unique)
+	if draftFailure != nil && draftFailure.Code != "change_set.assessment_incomplete" {
+		return draftFailure
+	}
+	if proposed[targetID] {
+		head, failure := currentCommit(root)
+		if failure != nil {
+			return failure
+		}
+		if failure := checkProposedBaseFreshness(root, snapshot, proposed, head); failure != nil {
+			return failure
+		}
+	}
+	if failure := checkArtifactOperationDeltas(root, snapshot, proposedIDs); failure != nil {
 		return failure
 	}
-	if !proposed[targetID] {
-		return nil
-	}
-	head, failure := currentCommit(root)
-	if failure != nil {
-		return failure
-	}
-	return checkProposedBaseFreshness(root, snapshot, proposed, head)
+	return draftFailure
 }
 
 func isImpactDiagnostic(diagnostic specvalidation.Diagnostic) bool {
@@ -579,9 +597,9 @@ func addRequirementWrites(writes *[]fileWrite, snapshot *specvalidation.Snapshot
 }
 
 func addConfigWrite(root string, snapshot *specvalidation.Snapshot, writes *[]fileWrite, observed map[string]fileExpectation) error {
-	overrides := make(map[string][]byte, len(*writes))
+	overrides := make(map[string]specvalidation.StoreFileOverride, len(*writes))
 	for _, write := range *writes {
-		overrides[filepath.ToSlash(write.path)] = write.data
+		overrides[filepath.ToSlash(write.path)] = specvalidation.StoreFileOverride{Data: write.data, Delete: write.delete}
 	}
 	stores := snapshot.Config.Stores.WithDefaults()
 	digests := records.StoreDigests{}
@@ -590,13 +608,13 @@ func addConfigWrite(root string, snapshot *specvalidation.Snapshot, writes *[]fi
 	for path := range observed {
 		observedPaths[filepath.ToSlash(path)] = true
 	}
-	if digests.Requirements, err = specvalidation.CanonicalStoreDigestWithOverridesAndObserved(root, stores.Requirements, overrides, observedPaths); err != nil {
+	if digests.Requirements, err = specvalidation.CanonicalStoreDigestWithFileOverrides(root, stores.Requirements, overrides, observedPaths); err != nil {
 		return err
 	}
-	if digests.Interfaces, err = specvalidation.CanonicalStoreDigestWithOverridesAndObserved(root, stores.Interfaces, overrides, observedPaths); err != nil {
+	if digests.Interfaces, err = specvalidation.CanonicalStoreDigestWithFileOverrides(root, stores.Interfaces, overrides, observedPaths); err != nil {
 		return err
 	}
-	if digests.ChangeSets, err = specvalidation.CanonicalStoreDigestWithOverridesAndObserved(root, stores.ChangeSets, overrides, observedPaths); err != nil {
+	if digests.ChangeSets, err = specvalidation.CanonicalStoreDigestWithFileOverrides(root, stores.ChangeSets, overrides, observedPaths); err != nil {
 		return err
 	}
 	snapshot.Config.StoreDigests = digests
@@ -614,10 +632,14 @@ func addRawWrite(writes *[]fileWrite, path string, data []byte) {
 	*writes = append(*writes, fileWrite{path: path, data: append([]byte(nil), data...)})
 }
 
+func addDelete(writes *[]fileWrite, path string) {
+	*writes = append(*writes, fileWrite{path: path, delete: true})
+}
+
 func deduplicateWrites(writes []fileWrite) []fileWrite {
 	byPath := make(map[string]fileWrite, len(writes))
 	for _, write := range writes {
-		byPath[filepath.ToSlash(write.path)] = fileWrite{path: filepath.ToSlash(write.path), data: write.data}
+		byPath[filepath.ToSlash(write.path)] = fileWrite{path: filepath.ToSlash(write.path), data: write.data, delete: write.delete}
 	}
 	result := make([]fileWrite, 0, len(byPath))
 	for _, write := range byPath {
@@ -699,6 +721,15 @@ func applyTransaction(rootPath string, writes []fileWrite, expected map[string]f
 				return Mutation{}, unknownIOFailure("storage.write_unknown", "A governed write directory failed and its final state could not be established.")
 			}
 			return Mutation{}, ioFailure("storage.write_failed", "The governed write directory could not be created.")
+		}
+		if write.delete {
+			if err := root.Remove(relative); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				if rollbackErr := rollbackFiles(root, originals[:index+1]); rollbackErr != nil {
+					return Mutation{}, unknownIOFailure("storage.write_unknown", "A governed deletion failed and its final state could not be established.")
+				}
+				return Mutation{}, ioFailure("storage.write_failed", "A governed deletion failed; no mutation was applied.")
+			}
+			continue
 		}
 		if err := replaceFile(root, relative, write.data); err != nil {
 			if rollbackErr := rollbackFiles(root, originals[:index+1]); rollbackErr != nil {
@@ -1106,7 +1137,7 @@ func checkProposedBaseFreshness(root string, snapshot specvalidation.Snapshot, p
 		if !proposed[document.Value.ID] {
 			continue
 		}
-		diagnostic, failure := proposedBaseFreshnessDiagnostic(root, document, head, targetHead)
+		diagnostic, failure := proposedBaseFreshnessDiagnostic(root, snapshot.Config.Repository, document, head, targetHead)
 		if failure != nil {
 			return failure
 		}
@@ -1117,7 +1148,7 @@ func checkProposedBaseFreshness(root string, snapshot specvalidation.Snapshot, p
 	return freshnessFailure(diagnostics)
 }
 
-func proposedBaseFreshnessDiagnostic(root string, document specvalidation.Document[records.ChangeSet], head, targetHead string) (*specvalidation.Diagnostic, *commandFailure) {
+func proposedBaseFreshnessDiagnostic(root string, repository records.RepositoryConfig, document specvalidation.Document[records.ChangeSet], head, targetHead string) (*specvalidation.Diagnostic, *commandFailure) {
 	id := document.Value.ID
 	base := strings.TrimSpace(document.Value.BaseCommit)
 	path := filepath.ToSlash(document.Path)
@@ -1125,29 +1156,75 @@ func proposedBaseFreshnessDiagnostic(root string, document specvalidation.Docume
 		if fullCommitID(base) && shallowRepository(root) {
 			return nil, shallowHistoryFailure()
 		}
-		return freshnessDiagnostic(codeBaseNotOnDefault, path, id, base, targetHead), nil
+		return freshnessDiagnostic(codeBaseNotOnDefault, path, id, base, targetHead, ""), nil
 	}
 	onDefault, failure := isAncestor(root, strings.ToLower(base), targetHead)
 	if failure != nil {
 		return nil, failure
 	}
 	if !onDefault {
-		return freshnessDiagnostic(codeBaseNotOnDefault, path, id, base, targetHead), nil
+		remoteRelation, failure := canonicalRemoteDefaultRelation(root, repository, base)
+		if failure != nil {
+			return nil, failure
+		}
+		return freshnessDiagnostic(codeBaseNotOnDefault, path, id, base, targetHead, remoteRelation), nil
 	}
 	mergedIn, failure := isAncestor(root, targetHead, head)
 	if failure != nil {
 		return nil, failure
 	}
 	if !mergedIn {
-		return freshnessDiagnostic(codeDefaultMoved, path, id, base, targetHead), nil
+		return freshnessDiagnostic(codeDefaultMoved, path, id, base, targetHead, ""), nil
 	}
 	if strings.ToLower(base) != targetHead {
-		return freshnessDiagnostic(codeBaseCommitStale, path, id, base, targetHead), nil
+		return freshnessDiagnostic(codeBaseCommitStale, path, id, base, targetHead, ""), nil
 	}
 	return nil, nil
 }
 
-func freshnessDiagnostic(code, path, id, base, targetHead string) *specvalidation.Diagnostic {
+func canonicalRemoteDefaultRelation(root string, repository records.RepositoryConfig, base string) (string, *commandFailure) {
+	branch, failure := defaultBranchName(repository.DefaultBranch)
+	if failure != nil {
+		return "", failure
+	}
+	remotes, failure := canonicalRemoteNames(root, repository.CanonicalRemote)
+	if failure != nil {
+		return "", failure
+	}
+	localHead, localFailure := localBranchHead(root, branch)
+	for _, remote := range remotes {
+		ref := "refs/remotes/" + remote + "/" + branch
+		output, err := gitCommand("-C", root, "rev-parse", "--verify", "--quiet", ref+"^{commit}").Output()
+		if err != nil {
+			continue
+		}
+		remoteHead := strings.ToLower(strings.TrimSpace(string(output)))
+		if !fullCommitID(remoteHead) {
+			continue
+		}
+		onRemote, failure := isAncestor(root, strings.ToLower(base), remoteHead)
+		if failure != nil {
+			return "", failure
+		}
+		if !onRemote {
+			continue
+		}
+		if localFailure != nil {
+			return "behind", nil
+		}
+		behind, failure := isAncestor(root, localHead, remoteHead)
+		if failure != nil {
+			return "", failure
+		}
+		if behind {
+			return "behind", nil
+		}
+		return "diverged", nil
+	}
+	return "", nil
+}
+
+func freshnessDiagnostic(code, path, id, base, targetHead, remoteRelation string) *specvalidation.Diagnostic {
 	return &specvalidation.Diagnostic{
 		Code:     code,
 		Severity: "error",
@@ -1155,7 +1232,7 @@ func freshnessDiagnostic(code, path, id, base, targetHead string) *specvalidatio
 		RecordID: id,
 		Field:    "base_commit",
 		Message:  freshnessMessage(code, id, base, targetHead),
-		Hint:     freshnessHint(code, id, targetHead),
+		Hint:     freshnessHint(code, id, remoteRelation),
 	}
 }
 
@@ -1171,14 +1248,20 @@ func freshnessMessage(code, id, base, targetHead string) string {
 	return fmt.Sprintf("Change set %s is based on %s, which is not the default-branch head %s.", id, base, targetHead)
 }
 
-func freshnessHint(code, id, targetHead string) string {
+func freshnessHint(code, id, remoteRelation string) string {
 	switch code {
 	case codeBaseNotOnDefault:
+		if remoteRelation == "behind" {
+			return "The local default branch is behind the last-fetched canonical remote-tracking default branch, which contains this base. Run the Source Control Manager's repo_state. Continue only when remote.reachable is true and default_branch.local is current or fast-forwarded. If remote.reachable is false, retry repo_state after connectivity returns. If default_branch.local is behind or diverged, ask the user to resolve the local default-branch state, then rerun repo_state and retry check only after this predicate passes."
+		}
+		if remoteRelation == "diverged" {
+			return "The local default branch has diverged from the last-fetched canonical remote-tracking default branch, which contains this base. Run the Source Control Manager's repo_state. Continue only when remote.reachable is true and default_branch.local is current or fast-forwarded. If remote.reachable is false, retry repo_state after connectivity returns. If default_branch.local is behind or diverged, ask the user to resolve the local default-branch state, then rerun repo_state and retry check only after this predicate passes."
+		}
 		return "Record a base_commit that is on the default branch. No command repairs a base that the default branch does not contain."
 	case codeDefaultMoved:
-		return fmt.Sprintf("Refresh: merge the default branch into the change-set branch, run change-set update --change-set %s --base-commit %s, rerun impact, record a reviewed impact assessment, then run check, commit, and push.", id, targetHead)
+		return fmt.Sprintf("Refresh: merge the default branch into the change-set branch, then run the Source Control Manager's repo_state. Continue only when remote.reachable is true and default_branch.local is current or fast-forwarded. If remote.reachable is false, retry repo_state after connectivity returns; if default_branch.local is behind or diverged, ask the user to resolve the local default-branch state, then rerun repo_state. Compare the default_branch.head returned by repo_state with the base_commit_update value returned by refresh; if they differ, run refresh again and rerun repo_state before proceeding. Use the default_branch.head returned by the latest repo_state call, not the head from this check, for change-set update --change-set %s --base-commit <default_branch.head>, rerun impact, record a reviewed impact assessment, then run check, commit, and push.", id)
 	case codeBaseCommitStale:
-		return fmt.Sprintf("The default branch is already merged. Run change-set update --change-set %s --base-commit %s, rerun impact, record a reviewed impact assessment, then run check, commit, and push.", id, targetHead)
+		return fmt.Sprintf("The default branch is already merged. Run refresh, then the Source Control Manager's repo_state. Continue only when remote.reachable is true and default_branch.local is current or fast-forwarded. If remote.reachable is false, retry repo_state after connectivity returns; if default_branch.local is behind or diverged, ask the user to resolve the local default-branch state, then rerun repo_state. Compare the default_branch.head returned by repo_state with the base_commit_update value returned by refresh; if they differ, run refresh again and rerun repo_state before proceeding. Use the default_branch.head returned by the latest repo_state call, not the head from this check, for change-set update --change-set %s --base-commit <default_branch.head>, rerun impact, record a reviewed impact assessment, then run check, commit, and push.", id)
 	}
 	return "Refresh the change set from the default branch, then rerun check."
 }

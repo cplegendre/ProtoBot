@@ -31,7 +31,7 @@ jobs:
       - name: Install uv
         # https://github.com/astral-sh/setup-uv
         # zizmor: ignore[cache-poisoning]
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           save-cache: ${{ github.ref == 'refs/heads/main' }}
 
@@ -218,6 +218,10 @@ jobs:
         with:
           go-version-file: source-control-manager/go.mod
 
+      - name: Build ears-manager for the real-binary replay
+        run: CGO_ENABLED=0 go build -trimpath -buildvcs=false -o ears-manager ./cmd/ears-manager
+        working-directory: ears-manager
+
       - name: Check formatting
         run: |
           files="$(gofmt -l source-control-manager)" || exit $?
@@ -239,6 +243,12 @@ jobs:
       - name: Run tests, the golden repository fixture included
         run: go test ./...
         working-directory: source-control-manager
+
+      - name: Replay the golden repository fixture against real ears-manager
+        run: go test -count=1 -v ./internal/golden
+        working-directory: source-control-manager
+        env:
+          SCM_FIXTURE_EARS_MANAGER: ${{ github.workspace }}/ears-manager/ears-manager
 
       - name: Build static binary
         run: CGO_ENABLED=0 go build -trimpath -buildvcs=false -o source-control-manager ./cmd/source-control-manager

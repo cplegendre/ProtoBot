@@ -96,6 +96,8 @@ also the correct one.
 Every agentic component must be independently evaluable. If you
 can't feed it a known input and measure its output, you can't
 improve it. This is an architectural constraint, not a nice-to-have.
+Project-level requirements and Job Site evaluation use the
+[evaluation corpus contract](evaluation-corpus.md).
 
 ---
 
@@ -266,12 +268,14 @@ rootless-OCI/microVM containment profile with external network and
 credential brokers is the independent sandbox fallback when OpenShell
 itself is unavailable or incompatible with the target platform.
 
-ProtoBot depends on a backend-neutral execution and sandbox contract,
-not on Fullsend or OpenShell APIs. Fullsend does not replace ProtoBot's
-change-set/WMS control plane, role-projected repositories, dual-worker
-integration, Triage sanitizer, or conformance evidence. A backend that
-cannot pass the contract's isolation, network, and credential acceptance
-tests cannot run autonomous work.
+ProtoBot depends on the backend-neutral Job Site Sandbox Contract,
+not on Fullsend or OpenShell APIs
+([Job Site Sandbox Contract](jobsite-sandbox.md)). Fullsend does not
+replace ProtoBot's change-set/WMS control plane, role-projected
+repositories, dual-worker integration, Triage sanitizer, or
+conformance evidence. A backend that fails any check of the
+contract cannot run
+autonomous work.
 
 OpenCode's model-provider flexibility applies directly to the Drafting
 Table. Job Site harnesses are backend-pluggable and need not use OpenCode;
@@ -324,6 +328,8 @@ ProtoBot's own components need (CLI tools, Go binaries, etc.).
   authorization, transitions, and rejection semantics.
 - [Drafting Table WMS Integration](drafting-table-wms.md) — Backend-neutral
   WMS operations and blocked-work resolution.
+- [Job Site Sandbox Contract](jobsite-sandbox.md) — Backend-neutral
+  sandbox conformance suite.
 - [Git and Project-Repository Integration](git-integration.md) —
   Project identification, branches, commits, PR preparation, and
   approved specification state.
@@ -341,5 +347,8 @@ ProtoBot's own components need (CLI tools, Go binaries, etc.).
   questions across all areas.
 - [Related Work](related-work.md) — Red Hat internal projects,
   external factory projects, and lessons learned.
+- [Evaluation Corpus Schema and Result Contract](evaluation-corpus.md)
+  — Versioned fixtures, holdout isolation, and stage-attributed
+  results.
 - [Architecture Decisions](../decisions/) — Resolved design
   decisions with full rationale.

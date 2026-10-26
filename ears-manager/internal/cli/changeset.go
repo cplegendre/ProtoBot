@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -288,6 +289,42 @@ func runChangeSetUpdate(args []string, stdin io.Reader) (any, Mutation, *command
 	if failure != nil {
 		return nil, Mutation{}, failure
 	}
+	var baseCommit string
+	if parsed.has("base-commit") {
+		baseCommit, failure = parseCommitOption(parsed.one("base-commit"))
+		if failure != nil {
+			return nil, Mutation{}, failure
+		}
+		if !commitExists(state.root, baseCommit) {
+			return nil, Mutation{}, validationFailure("change_set.invalid_base", "The base commit must be the full ID of a commit in the local repository, not of a tag or another object.", nil)
+		}
+		onDefault, failure := commitOnDefaultBranch(state.root, state.snapshot.Config.Repository, baseCommit)
+		if failure != nil {
+			return nil, Mutation{}, failure
+		}
+		if onDefault {
+			collides, failure := changeSetIDExistsAtCommit(state.root, baseCommit, id)
+			if failure != nil {
+				return nil, Mutation{}, failure
+			}
+			if collides {
+				manifestPath, err := storePath(state.snapshot.Config, records.ChangeSetStore, id)
+				if err != nil {
+					return nil, Mutation{}, internalFailure("the change-set path could not be determined")
+				}
+				diagnostic := specvalidation.Diagnostic{
+					Code:     "change_set.id_collision",
+					Severity: "error",
+					Path:     manifestPath,
+					RecordID: id,
+					Field:    "id",
+					Message:  fmt.Sprintf("Change set %s already exists in the tree of commit %s.", id, baseCommit),
+					Hint:     fmt.Sprintf("Run ears-manager change-set renumber --change-set %s, then refresh the base commit and reviewed impact assessment.", id),
+				}
+				return nil, Mutation{}, conflictFailure("change_set.id_collision", fmt.Sprintf("Change set %s collides with the target base commit %s.", id, baseCommit), []specvalidation.Diagnostic{diagnostic})
+			}
+		}
+	}
 	index, current, failure := proposedChangeSetForUpdate(state, id, parsed.has("base-commit"))
 	if failure != nil {
 		return nil, Mutation{}, failure
@@ -304,13 +341,6 @@ func runChangeSetUpdate(args []string, stdin io.Reader) (any, Mutation, *command
 		updated.AffectedScopes = append([]string{}, parsed.list("affected-scope")...)
 	}
 	if parsed.has("base-commit") {
-		baseCommit, failure := parseCommitOption(parsed.one("base-commit"))
-		if failure != nil {
-			return nil, Mutation{}, failure
-		}
-		if !commitExists(state.root, baseCommit) {
-			return nil, Mutation{}, validationFailure("change_set.invalid_base", "The base commit must be the full ID of a commit in the local repository, not of a tag or another object.", nil)
-		}
 		onHead, failure := isAncestor(state.root, baseCommit, state.head)
 		if failure != nil {
 			return nil, Mutation{}, failure
@@ -376,6 +406,155 @@ func runChangeSetUpdate(args []string, stdin io.Reader) (any, Mutation, *command
 		AssessmentStatus: afterStatus,
 		ChangedPaths:     changedPaths,
 	}, mutation, nil
+}
+
+func runChangeSetRenumber(args []string) (any, Mutation, *commandFailure) {
+	parsed, failure := parseOptions(args, valueOptions("change-set", "to"))
+	if failure != nil {
+		return nil, Mutation{}, failure
+	}
+	oldID, failure := requireOption(parsed, "change-set")
+	if failure != nil {
+		return nil, Mutation{}, failure
+	}
+	if err := records.ValidateChangeSetID(oldID); err != nil {
+		return nil, Mutation{}, invalidIDFailure("change_set.invalid_id", "Change-set", oldID)
+	}
+	state, failure := loadState()
+	if failure != nil {
+		return nil, Mutation{}, failure
+	}
+	index, before, failure := proposedChangeSetForRenumber(state, oldID)
+	if failure != nil {
+		return nil, Mutation{}, failure
+	}
+	prefix, failure := changeSetBranchPrefix(state.snapshot.Config.Repository.BranchPrefix)
+	if failure != nil {
+		return nil, Mutation{}, failure
+	}
+	var newID string
+	if parsed.has("to") {
+		newID = parsed.one("to")
+		if err := records.ValidateChangeSetID(newID); err != nil {
+			return nil, Mutation{}, invalidIDFailure("change_set.invalid_id", "Change-set", newID)
+		}
+		if newID == oldID {
+			return nil, Mutation{}, conflictFailure("change_set.id_collision", fmt.Sprintf("Change set %s cannot be renumbered to its current ID.", oldID), nil)
+		}
+	} else {
+		highest, failure := highestChangeSetNumber(state, prefix)
+		if failure != nil {
+			return nil, Mutation{}, failure
+		}
+		if highest >= lastChangeSetNumber {
+			return nil, Mutation{}, conflictFailure("change_set.sequence_exhausted", "No change-set sequence number is available.", nil)
+		}
+		newID = fmt.Sprintf("CS-%05d", highest+1)
+	}
+	newNumber, _ := changeSetNumber(newID)
+	inUse, failure := changeSetNumberInUse(state, prefix, newNumber)
+	if failure != nil {
+		return nil, Mutation{}, failure
+	}
+	if inUse {
+		return nil, Mutation{}, conflictFailure("change_set.id_collision", fmt.Sprintf("Change-set ID %s is already in use.", newID), nil)
+	}
+
+	updated := cloneChangeSet(before)
+	updated.ID = newID
+	staged := cloneSnapshot(state.snapshot)
+	oldPath := staged.ChangeSets[index].Path
+	oldFields := staged.ChangeSets[index].Fields
+	staged.ChangeSets = append(staged.ChangeSets[:index], staged.ChangeSets[index+1:]...)
+	newPath, err := upsertChangeSet(&staged, updated)
+	if err != nil {
+		return nil, Mutation{}, internalFailure("the change-set path could not be determined")
+	}
+	staged.ChangeSets[len(staged.ChangeSets)-1].Fields = oldFields
+	if failure := validateCandidateForChangeSet(staged, newID, true); failure != nil {
+		return nil, Mutation{}, failure
+	}
+	writes := []fileWrite{}
+	if err := addWrite(&writes, newPath, updated); err != nil {
+		return nil, Mutation{}, internalFailure("the change set could not be serialized")
+	}
+	addDelete(&writes, oldPath)
+	if err := addConfigWrite(state.root, &staged, &writes, state.observed); err != nil {
+		return nil, Mutation{}, configWriteFailure(err, "the project configuration could not be serialized")
+	}
+	mutation, failure := applyStateTransaction(state, writes, func() *commandFailure { return persistedValidation(state.root, true, newID) })
+	if failure != nil {
+		return nil, Mutation{}, failure
+	}
+	return changeSetRenumberData{
+		From:         oldID,
+		To:           newID,
+		ManifestPath: newPath,
+	}, mutation, nil
+}
+
+func changeSetIDExistsAtCommit(root, commit, id string) (bool, *commandFailure) {
+	_, exists, failure := changeSetAtCommit(root, commit, id)
+	return exists, failure
+}
+
+func changeSetAtCommit(root, commit, id string) (records.ChangeSet, bool, *commandFailure) {
+	state, cleanup, failure := loadRevisionState(root, commit)
+	if failure != nil {
+		if failure.Code == "project.not_initialized" {
+			return records.ChangeSet{}, false, nil
+		}
+		return records.ChangeSet{}, false, failure
+	}
+	defer cleanup()
+	_, value, exists := findChangeSet(state.snapshot, id)
+	return value, exists, nil
+}
+
+func proposedChangeSetForRenumber(state projectState, id string) (int, records.ChangeSet, *commandFailure) {
+	index, value, exists := findChangeSet(state.snapshot, id)
+	if !exists {
+		return -1, records.ChangeSet{}, validationFailure("change_set.not_proposed", fmt.Sprintf("Change set %s was not found.", id), nil)
+	}
+	refs, failure := resolveDefaultBranchRefs(state.root, state.snapshot.Config.Repository)
+	if failure != nil {
+		return -1, records.ChangeSet{}, failure
+	}
+	approved, failure := changeSetApprovedAt(state.root, refs, state.snapshot.ChangeSets[index].Path)
+	if failure != nil {
+		return -1, records.ChangeSet{}, failure
+	}
+	if !approved {
+		return proposedChangeSet(state, id)
+	}
+	defaultHead, failure := defaultBranchHead(state.root, state.snapshot.Config.Repository)
+	if failure != nil {
+		return -1, records.ChangeSet{}, failure
+	}
+	defaultValue, exists, failure := changeSetAtCommit(state.root, defaultHead, id)
+	if failure != nil {
+		return -1, records.ChangeSet{}, failure
+	}
+	if !exists || reflect.DeepEqual(records.CanonicalChangeSet(defaultValue), records.CanonicalChangeSet(value)) {
+		return -1, records.ChangeSet{}, conflictFailure("change_set.not_proposed", fmt.Sprintf("Change set %s is approved and immutable.", id), nil)
+	}
+	if failure := checkRecordedBase(state.root, id, value.BaseCommit); failure != nil {
+		return -1, records.ChangeSet{}, failure
+	}
+	descends, failure := isAncestor(state.root, value.BaseCommit, state.head)
+	if failure != nil {
+		return -1, records.ChangeSet{}, failure
+	}
+	if !descends {
+		return -1, records.ChangeSet{}, conflictFailure("change_set.base_mismatch", fmt.Sprintf("Change set %s is based on %s, but the working tree at %s does not descend from it.", id, value.BaseCommit, state.head), nil)
+	}
+	return index, cloneChangeSet(value), nil
+}
+
+type changeSetRenumberData struct {
+	From         string `json:"from"`
+	To           string `json:"to"`
+	ManifestPath string `json:"manifest_path"`
 }
 
 type changeSetUpdateData struct {

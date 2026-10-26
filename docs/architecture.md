@@ -67,6 +67,7 @@ Environmental constraints are listed in a
 | 11 | IdeaBot handoff _(manual, Q4)_ | Pipeline input | IdeaBot | Drafting Table |
 | 12 | Prototype and demo artifacts | Pipeline output | Job Site | TransferBot, stakeholders |
 | 13 | Source Control Manager | MCP tool surface + CLI | Source Control Manager | Drafting Table (TUI and Web), Job Site (registration, Materializer) |
+| 14 | Job Site sandbox contract | Versioned adapter contract with deterministic conformance suite | Sandbox adapters/backends | Job Site |
 
 Most interfaces are described in dedicated sections below.
 The Job Site intake interface and the claim coordinator are
@@ -483,9 +484,14 @@ components.
   by a component or Worker outside its owned/allowlisted
   paths.
 - **Integrity:** `store_digests` in `.protobot/project.yaml` protect
-  each structured store's canonical file set. Pre-stage comparison and
-  CI reject direct edits, additions, deletions, renames, and symlinks
-  that do not match an unaltered digest.
+  each structured store's canonical file set. The SCM's pre-stage
+  comparison rejects stale artifact or store digests in its file set,
+  and CI validates all registered artifact and store digests.
+  `ears-manager check` also compares registered artifact paths and
+  canonical content with the default-branch tree, requiring a matching
+  `artifact_id` in `artifact_operations[]` in a proposed change set for
+  each delta and rejecting unregistration of an artifact-registry entry
+  present on the default branch.
 - **Merge strategy:** Merge commits (not squash or rebase) to
   preserve the iteration DAG for evaluability.
 
@@ -511,8 +517,10 @@ scope to the handoff boundary — what crosses the line between
 interactive and autonomous work. The Job Site's internal
 components, worker topology, execution backends, and sandbox
 architecture are detailed in the [System
-Components](architecture/components.md#job-site) design document and are
-out of scope for this Sketch.
+Components](architecture/components.md#job-site) design document.
+The backend-neutral sandbox conformance suite is the
+[Job Site Sandbox Contract](architecture/jobsite-sandbox.md). Worker
+topology and backend internals remain out of scope for this Sketch.
 
 **Pipeline input (what seeds ProtoBot):**
 
@@ -577,6 +585,9 @@ out of scope for this Sketch.
   the specification commit
 - Project repository — source checkout, integration branches,
   merge to main
+- Job Site sandbox contract — backend-neutral isolation, network,
+  credential, limit, cleanup, and audit checks
+  ([Job Site Sandbox Contract](architecture/jobsite-sandbox.md))
 - Source Control Manager — the merge commit of an approved change
   set, for registration and the Materializer
 - Validation Rules — pre-write transition checks
@@ -702,14 +713,23 @@ decision is bounded only by the binding's native rules or
 sandbox, which may still let it edit a specification file
 directly: for example, Codex's sandbox permits writes in the
 working tree, and an admitted `ears-manager` call can redirect
-its output. Later checks do not prevent such an edit. When an
-unauthorized persistent edit to a registered path reaches them
-and leaves the registry intact, the SCM's pre-stage digest
-comparison refuses to stage it and `ears-manager check` fails it
-before merge; a fail-open write that also rewrites the digest in
-`.protobot/project.yaml` passes both; CI path ownership does
-not catch an edit inside the correct owned path
-([What the harness layer stops][layer-stops]). No later check
+its output. Later checks do not prevent such an edit. A stale
+registry digest is reported as `artifact.digest_mismatch`, and
+the SCM's pre-stage comparison refuses to stage it. If a write
+also rewrites the digest, `ears-manager check` compares the
+registered artifact path and canonical content with the
+default-branch tree and requires a matching `artifact_id` in
+`artifact_operations[]` in any proposed change set; it also
+rejects unregistration of a default-branch artifact. A file
+already present at the same path with identical canonical text
+can be newly registered without an operation; metadata-only
+changes are outside this check. `artifact.operation_missing`
+reports a delta without an operation, and `artifact.unregistered`
+reports a removed registration. A matching operation establishes
+manifest association only: it does not prove that `ears-manager
+artifact put` was invoked or prevent coordinated manual edits.
+CI path ownership does not catch an edit inside the correct owned
+path ([What the harness layer stops][layer-stops]). No later check
 establishes the provenance of `--content-file` or `--impact-file`
 bytes ([File-source arguments][fail-open]).
 
@@ -723,8 +743,10 @@ prompting alone. The mandatory enforcement layers are:
 - **Branch protection on `main`** — prevents direct pushes;
   all changes require a reviewed PR.
 - **`ears-manager check` as a CI merge gate** — validates
-  specification well-formedness, required metadata, and
-  referential integrity before merge.
+  specification well-formedness, required metadata, referential
+  integrity, registered artifact path/canonical-content deltas
+  against proposed operations, continued registration of
+  default-branch artifacts, and proposed `base_commit` freshness.
 - **Path ownership in CI** — rejects edits by a component or
   Worker outside its owned or allowlisted paths (CODEOWNERS
   and required reviews).
@@ -766,7 +788,7 @@ stops](architecture/agent-harness/adapter-contract.md#what-the-harness-layer-sto
 | `ears-manager artifact put/get/list` | Specification store | Manage Vision, Architecture, IDL artifacts |
 | `ears-manager change-set *` | Specification store; project repository | Create, list, show, compare, update change sets; `create` cuts the change-set branch |
 | `ears-manager impact` | Specification store | Generate applicable-requirement candidates |
-| `ears-manager check` | Specification store | Validate spec well-formedness |
+| `ears-manager check` | Specification store | Validate spec well-formedness, artifact digests, registered artifact path/content deltas against proposed operations, continued registration, and proposed base freshness |
 | WMS request operations | WMS Adapter | `request.create`, `request.refine`, `request.link-change-set`, `request.link-build-work-item`; `request.update-priority` is human-maintainer only |
 | WMS query operations | WMS Adapter | `request.get`, `request.query`, `work-item.get`, `work-item.query`, and `blocked-work.query` |
 | WMS lifecycle preflight | WMS Adapter | `lifecycle.preflight` with no mutation |
@@ -812,7 +834,11 @@ Materializer ── create work item ─→ WMS Backend
 
 Persistent state outlives any single run and requires its own
 interface contract. ProtoBot has eight categories of persistent
-state. The initial project and specification stores use schema
+state. The evaluation corpus under `eval/corpus/` is repository
+evaluation data, not a ninth project store. The
+[evaluation corpus contract](architecture/evaluation-corpus.md)
+states this explicitly.
+The initial project and specification stores use schema
 version 1 (in `.protobot/project.yaml`) and include structured-store
 integrity digests. When a tool encounters data at a version newer
 than its own, it refuses to operate rather than silently corrupting
@@ -826,7 +852,12 @@ EARS requirements, interface definitions, change-set manifests
 — live in the project's Git repository. `ears-manager` is the
 exclusive write gate. The storage format is abstracted behind
 `ears-manager`'s CLI; callers never parse specification files
-directly.
+directly. `ears-manager check` validates artifact digests, requires an
+`artifact_operations[]` entry with the same `artifact_id` in any proposed
+change set for each registered path or canonical-content delta, and
+rejects unregistration of an artifact registered on the default branch.
+This establishes manifest association, not proof that `artifact put` was
+invoked.
 
 **Where it lives:** The project repository, under paths
 registered in `.protobot/project.yaml`.
@@ -978,7 +1009,7 @@ incompatible decisions.
 | Prototype outputs: UBI + Hummingbird images | Lightweight, fast-turnaround demo builds on Red Hat certified base images. |
 | Authentication: OAuth 2.1 | ESS-required baseline. MCP/API servers terminate inbound client tokens and use server-owned credentials downstream (Alcove Bridge/Gate pattern). |
 | Credential isolation: Bridge/Gate pattern | Agent processes never see real credentials. Bridges pre-fetch tokens; Gates inject them at the network boundary. |
-| Evaluability from day one | Every agentic component records replayable inputs/outputs and structured traces, enabling component-level testing and measurable improvement. This is an architectural constraint, not retrofitted. |
+| Evaluability from day one | Every agentic component records replayable inputs/outputs and structured traces, enabling component-level testing and measurable improvement. Project-level requirements and Job Site evaluation use the [evaluation corpus contract](architecture/evaluation-corpus.md). This is an architectural constraint, not retrofitted. |
 | No CRDs or operators on Managed Platform Plus (IdeaBot ADR-0021) | Inherited constraint. The Web Drafting Table needs a deployment target that does not depend on CRDs or operators. |
 | Identity: Red Hat SSO / Keycloak (IdeaBot ADR-0012) | Inherited constraint. The OAuth 2.1 issuer for hosted modes is Red Hat SSO (Keycloak). |
 | Prototype scope: not every prototype is a container | The set of supported output types will expand over time. Initial types should support bootstrapping (CLI tools, Go binaries). |
@@ -1001,6 +1032,7 @@ approach.
 | Source Control Manager | MCP tool surface + CLI | MCP tool schemas (JSON Schema) on MCP revision 2026-07-28, dual-era with 2025-11-25 on stdio, and the result envelope and error codes defined in the [SCM contract](architecture/source-control-manager.md) |
 | Specification Toolkit | Agent skill package | Skill manifest + MCP tool schemas (JSON Schema) |
 | Validation Rules | Versioned declarative state-machine ruleset | Deterministic evaluator ([Validation Rules Contract](architecture/validation-rules.md)) |
+| Job Site sandbox contract | Versioned adapter contract | Deterministic conformance suite ([Job Site Sandbox Contract](architecture/jobsite-sandbox.md)) |
 | Drafting Table (TUI) | REPL | Specification Toolkit skills and prompts define the interaction protocol |
 | Drafting Table (Web) | Web GUI | Open gap — Web GUI specification approach not yet established |
 | Project repository | Persistent state | JSON Schema for each `.protobot/` file + `ears-manager` CLI contract |
@@ -1026,6 +1058,8 @@ that contract.
   authorization, transition, rejection, and conformance contract
 - [Drafting Table WMS Integration](architecture/drafting-table-wms.md) —
   Backend-neutral WMS operations and blocked-work resolution
+- [Job Site Sandbox Contract](architecture/jobsite-sandbox.md) —
+  Sandbox conformance suite
 - [Git and Project-Repository
   Integration](architecture/git-integration.md) — Project
   identification, branches, commits, PR preparation, and approved
@@ -1048,6 +1082,8 @@ that contract.
   and sequence diagrams
 - [Drafting Table UX](architecture/drafting-table-ux.md) — Stable
   interaction contract for the first local Drafting Table
+- [Evaluation Corpus Schema and Result Contract](architecture/evaluation-corpus.md)
+  — Versioned fixtures, holdout isolation, and stage-attributed results
 - [Open Design Questions](architecture/open-questions.md) — Unresolved
   design questions across all areas
 - [Related Work](architecture/related-work.md) — Red Hat internal projects,

@@ -1153,6 +1153,8 @@ whether this is achievable given Red Hat's AIA requirements.
   authorization, transitions, and rejection semantics
 - [Drafting Table WMS Integration](drafting-table-wms.md) — Backend-neutral
   WMS operations and blocked-work resolution
+- [Job Site Sandbox Contract](jobsite-sandbox.md) — Backend-neutral
+  isolation for Building Workers
 - [Git and Project-Repository Integration](git-integration.md) —
   Project identification, branches, commits, PR preparation, and
   approved specification state
@@ -1168,6 +1170,9 @@ whether this is achievable given Red Hat's AIA requirements.
   second harness binding
 - [Codex Harness Binding](agent-harness/codex.md) — The third harness
   binding
+- [Evaluation Corpus Schema and Result Contract](evaluation-corpus.md)
+  — Versioned fixtures, holdout isolation, and stage-attributed
+  results
 - [Open Design Questions](open-questions.md) — Unresolved design
   questions across all areas
 - [Related Work](related-work.md) — Red Hat internal projects,

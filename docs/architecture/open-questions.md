@@ -279,6 +279,8 @@ relationships, eval coverage) stay open above.
   approved specification state
 - [Source Control Manager](source-control-manager.md) — The Git and Git
   host boundary, and the Job Site face that Q21 leaves open
+- [Job Site Sandbox Contract](jobsite-sandbox.md) — Backend-neutral
+  sandbox contract; Q21 leaves the Job Site face open
 - [Agent Harness Adapter Contract](agent-harness/adapter-contract.md) —
   Harness-neutral adapter core, the guard, and harness obligations
 - [OpenCode Harness Binding](agent-harness/opencode.md) — The first
@@ -287,6 +289,9 @@ relationships, eval coverage) stay open above.
   second harness binding
 - [Codex Harness Binding](agent-harness/codex.md) — The third harness
   binding
+- [Evaluation Corpus Schema and Result Contract](evaluation-corpus.md)
+  — Versioned fixtures, holdout isolation, and stage-attributed
+  results
 - [Related Work](related-work.md) — Red Hat internal projects,
   external factory projects, and lessons learned
 

@@ -18,6 +18,12 @@ import (
 // record file that was not part of the snapshot it validated.
 var ErrUnobservedStoreEntry = errors.New("unobserved structured-store entry")
 
+// StoreFileOverride supplies replacement bytes or marks a record deleted.
+type StoreFileOverride struct {
+	Data   []byte
+	Delete bool
+}
+
 func validateStoreIntegrity(result *Result, snapshot Snapshot, projectPath string, stores records.StorePaths, expected records.StoreDigests) {
 	if snapshot.ConfigFields == nil && emptyStoreDigests(expected) {
 		return
@@ -63,16 +69,22 @@ func canonicalStoreDigest(root, relativeDirectory string) (string, error) {
 // caller persist the updated store digest in the same transaction as its
 // record writes.
 func CanonicalStoreDigestWithOverrides(root, relativeDirectory string, overrides map[string][]byte) (string, error) {
-	return canonicalStoreDigestWithObserved(root, relativeDirectory, overrides, nil)
+	return CanonicalStoreDigestWithOverridesAndObserved(root, relativeDirectory, overrides, nil)
 }
 
 // CanonicalStoreDigestWithOverridesAndObserved computes a store digest while
 // rejecting files that appeared after the caller's validated snapshot.
 func CanonicalStoreDigestWithOverridesAndObserved(root, relativeDirectory string, overrides map[string][]byte, observed map[string]bool) (string, error) {
-	return canonicalStoreDigestWithObserved(root, relativeDirectory, overrides, observed)
+	fileOverrides := make(map[string]StoreFileOverride, len(overrides))
+	for path, data := range overrides {
+		fileOverrides[path] = StoreFileOverride{Data: data}
+	}
+	return CanonicalStoreDigestWithFileOverrides(root, relativeDirectory, fileOverrides, observed)
 }
 
-func canonicalStoreDigestWithObserved(root, relativeDirectory string, overrides map[string][]byte, observed map[string]bool) (string, error) {
+// CanonicalStoreDigestWithFileOverrides computes a store digest with writes
+// and deletions applied to the files currently on disk.
+func CanonicalStoreDigestWithFileOverrides(root, relativeDirectory string, overrides map[string]StoreFileOverride, observed map[string]bool) (string, error) {
 	canonical, err := canonicalStorePath(relativeDirectory)
 	if err != nil {
 		return "", err
@@ -128,25 +140,31 @@ func canonicalStoreDigestWithObserved(root, relativeDirectory string, overrides 
 			if filepath.Ext(entry.Name()) != ".yaml" {
 				return "", fmt.Errorf("record store contains an unexpected file")
 			}
-			data, exists := overrides[relativePath]
+			override, exists := overrides[relativePath]
+			if exists && override.Delete {
+				continue
+			}
 			if !exists {
-				data, err = rootHandle.ReadFile(filepath.FromSlash(relativePath))
+				override.Data, err = rootHandle.ReadFile(filepath.FromSlash(relativePath))
 				if err != nil {
 					return "", err
 				}
 			}
-			files[relativePath] = data
+			files[relativePath] = override.Data
 		}
 	}
 
-	for path, data := range overrides {
+	for path, override := range overrides {
+		if override.Delete {
+			continue
+		}
 		if !isImmediateStoreRecord(canonical, path) {
 			continue
 		}
 		if _, exists := files[path]; exists {
 			continue
 		}
-		files[path] = data
+		files[path] = override.Data
 	}
 
 	paths := make([]string, 0, len(files))
