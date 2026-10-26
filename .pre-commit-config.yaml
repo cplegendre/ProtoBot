@@ -62,7 +62,7 @@ repos:
       - id: uv-lock
 
   - repo: https://github.com/stbenjam/skillsaw
-    rev: f39a95b028dba96c646a7dc2c3866cda0ab087f2  # frozen: v0.21.0
+    rev: bf83a4fa0028ac98beef3241794b0e6beb968fef  # frozen: v0.22.0
     hooks:
       - id: skillsaw
 
